@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:talker_dio_logger_plus/src/ui/talker_theme_provider.dart';
 import 'package:talker_dio_logger_plus/src/utils/file_saver.dart';
 import 'package:talker_dio_logger_plus/src/utils/file_saver_interface.dart';
 import 'package:talker_dio_logger_plus/src/utils/size_calculator.dart';
@@ -145,10 +146,15 @@ class FullScreenImageViewer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = TalkerThemeProvider.of(context);
+    final bgColor = theme.backgroundColor;
+    final textColor = theme.textColor;
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: bgColor,
+        foregroundColor: textColor,
         title: Text(title ?? 'Image Preview'),
         actions: [
           IconButton(
@@ -171,15 +177,19 @@ class FullScreenImageViewer extends StatelessWidget {
             imageData,
             fit: BoxFit.contain,
             errorBuilder: (context, error, stackTrace) {
-              return const Center(
+              return Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.broken_image, color: Colors.grey, size: 64),
-                    SizedBox(height: 16),
+                    Icon(
+                      Icons.broken_image,
+                      color: textColor.withValues(alpha: 0.5),
+                      size: 64,
+                    ),
+                    const SizedBox(height: 16),
                     Text(
                       'Failed to load image',
-                      style: TextStyle(color: Colors.grey),
+                      style: TextStyle(color: textColor.withValues(alpha: 0.5)),
                     ),
                   ],
                 ),
@@ -190,10 +200,10 @@ class FullScreenImageViewer extends StatelessWidget {
       ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(16),
-        color: Colors.black,
+        color: bgColor,
         child: Text(
           'Size: ${SizeCalculator.formatBytes(imageData.length)}',
-          style: const TextStyle(color: Colors.grey),
+          style: TextStyle(color: textColor.withValues(alpha: 0.6)),
           textAlign: TextAlign.center,
         ),
       ),

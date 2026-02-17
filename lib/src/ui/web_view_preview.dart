@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
+import 'package:talker_dio_logger_plus/src/ui/talker_theme_provider.dart';
 
 /// Widget to preview HTML content
 class WebViewPreview extends StatelessWidget {
@@ -108,10 +109,7 @@ class WebViewPreview extends StatelessWidget {
     final textContent = _extractTextFromHtml(htmlContent);
     return Text(
       textContent,
-      style: TextStyle(
-        color: Colors.grey[800],
-        fontSize: 12,
-      ),
+      style: TextStyle(color: Colors.grey[800], fontSize: 12),
     );
   }
 
@@ -139,8 +137,15 @@ class FullScreenHtmlPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = TalkerThemeProvider.of(context);
+    final bgColor = theme.backgroundColor;
+    final textColor = theme.textColor;
+
     return Scaffold(
+      backgroundColor: bgColor,
       appBar: AppBar(
+        backgroundColor: bgColor,
+        foregroundColor: textColor,
         title: Text(title ?? 'HTML Preview'),
         actions: [
           IconButton(
@@ -178,14 +183,15 @@ class FullScreenHtmlPreview extends StatelessWidget {
   }
 
   Widget _buildHtmlSource(BuildContext context) {
+    final theme = TalkerThemeProvider.of(context);
     return Container(
-      color: Colors.grey[900],
+      color: theme.backgroundColor,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: SelectableText(
           htmlContent,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: theme.textColor,
             fontFamily: 'monospace',
             fontSize: 12,
           ),
@@ -195,6 +201,10 @@ class FullScreenHtmlPreview extends StatelessWidget {
   }
 
   void _showSourceCode(BuildContext context) {
+    final theme = TalkerThemeProvider.of(context);
+    final cardColor = theme.cardColor;
+    final textColor = theme.textColor;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -206,9 +216,11 @@ class FullScreenHtmlPreview extends StatelessWidget {
           maxChildSize: 0.95,
           builder: (context, scrollController) {
             return Container(
-              decoration: const BoxDecoration(
-                color: Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(16),
+                ),
               ),
               child: Column(
                 children: [
@@ -216,17 +228,17 @@ class FullScreenHtmlPreview extends StatelessWidget {
                     padding: const EdgeInsets.all(16),
                     child: Row(
                       children: [
-                        const Text(
+                        Text(
                           'HTML Source',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: textColor,
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         const Spacer(),
                         IconButton(
-                          icon: const Icon(Icons.close, color: Colors.white),
+                          icon: Icon(Icons.close, color: textColor),
                           onPressed: () => Navigator.of(context).pop(),
                         ),
                       ],
@@ -255,4 +267,3 @@ class FullScreenHtmlPreview extends StatelessWidget {
     );
   }
 }
-

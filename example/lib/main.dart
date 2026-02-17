@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:talker_flutter/talker_flutter.dart';
 import 'package:talker_dio_logger_plus/talker_dio_logger_plus.dart';
+import 'package:talker_flutter/talker_flutter.dart';
 
 void main() {
   runApp(const MyApp());
@@ -202,7 +202,16 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _openTalkerScreen(BuildContext context) {
-    const theme = TalkerScreenTheme();
+    // Define a custom theme for the talker screen
+    // This theme will be automatically propagated to all child screens
+    // via TalkerThemeProvider (InheritedWidget) - no prop drilling needed!
+    const theme = TalkerScreenTheme(
+      // You can customize colors here:
+      // backgroundColor: Colors.black,
+      // cardColor: Color(0xFF1E1E1E),
+      // textColor: Colors.white,
+    );
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder:
@@ -212,7 +221,11 @@ class _HomePageState extends State<HomePage> {
               // Use the custom HTTP log card builder
               itemsBuilder: (context, data) {
                 if (isAdvancedHttpLog(data)) {
-                  return HttpLogCard(data: data, expanded: true);
+                  // HttpLogCard automatically wraps child navigations with
+                  // TalkerThemeProvider, so detail screens (HttpDetailScreen,
+                  // FullScreenImageViewer, FullScreenHtmlPreview) can access
+                  // the theme via TalkerThemeProvider.of(context)
+                  return HttpLogCard(data: data, expanded: true, theme: theme);
                 }
                 // Return default card for non-advanced logs
                 return TalkerDataCard(

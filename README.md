@@ -141,6 +141,57 @@ TalkerScreen(
 )
 ```
 
+## Theme Support
+
+### TalkerThemeProvider
+
+The package uses `TalkerThemeProvider` (an `InheritedWidget`) to provide consistent theming across all screens without prop drilling. When you navigate to detail screens, the theme is automatically available to all child widgets.
+
+The `HttpLogCard` automatically wraps navigation with `TalkerThemeProvider`, so child screens like `FullScreenImageViewer` and `FullScreenHtmlPreview` can access the theme via:
+
+```dart
+final theme = TalkerThemeProvider.of(context);
+```
+
+### Custom Theme
+
+You can customize the theme by passing a `TalkerScreenTheme` to `HttpLogCard`:
+
+```dart
+HttpLogCard(
+  data: data,
+  expanded: true,
+  theme: TalkerScreenTheme(
+    backgroundColor: Colors.black,
+    cardColor: Color(0xFF1E1E1E),
+    textColor: Colors.white,
+    // ... other theme properties
+  ),
+)
+```
+
+### Accessing Theme in Custom Widgets
+
+If you're building custom widgets that need access to the theme:
+
+```dart
+class MyCustomWidget extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    // Get theme from the nearest TalkerThemeProvider ancestor
+    final theme = TalkerThemeProvider.of(context);
+    
+    // Use maybeOf if you want null instead of default theme
+    final themeOrNull = TalkerThemeProvider.maybeOf(context);
+    
+    return Container(
+      color: theme.backgroundColor,
+      child: Text('Hello', style: TextStyle(color: theme.textColor)),
+    );
+  }
+}
+```
+
 ## cURL Generation
 
 ### Copy cURL with Hidden Auth

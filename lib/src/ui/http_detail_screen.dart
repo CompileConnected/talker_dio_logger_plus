@@ -7,8 +7,10 @@ import 'package:talker_dio_logger_plus/src/ui/image_preview.dart';
 import 'package:talker_dio_logger_plus/src/ui/searchable_json_viewer.dart';
 import 'package:talker_dio_logger_plus/src/ui/web_view_preview.dart';
 import 'package:talker_dio_logger_plus/src/utils/file_saver.dart';
-import 'package:talker_dio_logger_plus/src/utils/file_saver_interface.dart';
 import 'package:talker_dio_logger_plus/src/utils/size_calculator.dart';
+
+import '../../talker_dio_logger_plus.dart';
+import '../utils/status_color.dart';
 
 /// Detailed view screen for HTTP logs
 class HttpDetailScreen extends StatefulWidget {
@@ -18,8 +20,6 @@ class HttpDetailScreen extends StatefulWidget {
     this.requestLog,
     this.responseLog,
     this.errorLog,
-    this.backgroundColor,
-    this.primaryColor,
     this.fileSaver,
   });
 
@@ -27,8 +27,6 @@ class HttpDetailScreen extends StatefulWidget {
   final AdvancedDioRequestLog? requestLog;
   final AdvancedDioResponseLog? responseLog;
   final AdvancedDioErrorLog? errorLog;
-  final Color? backgroundColor;
-  final Color? primaryColor;
 
   /// Custom file saver implementation.
   /// If not provided, uses [DefaultFileSaver].
@@ -42,6 +40,10 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool _showFullCurl = false;
+
+  // Collapsible section states for Response tab
+  bool _responseHeadersExpanded = true;
+  bool _responseBodyExpanded = true;
 
   /// Get the file saver instance, defaulting to DefaultFileSaver
   FileSaverInterface get _fileSaver =>
@@ -61,23 +63,26 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final bgColor =
-        widget.backgroundColor ??
-        (isDark ? const Color(0xFF1E1E1E) : Colors.white);
-    final primaryColor = widget.primaryColor ?? _getStatusColor();
+    final theme = TalkerThemeProvider.of(context);
+
+    final bgColor = theme.backgroundColor;
+    final textColor = theme.textColor;
+    final primaryColor = StatusColorUtil.getStatusColor(
+      widget.httpLogData.statusCode,
+      theme,
+    );
 
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
         backgroundColor: bgColor,
+        foregroundColor: textColor,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               '${widget.httpLogData.method} ${widget.httpLogData.path}',
-              style: const TextStyle(fontSize: 14),
+              style: TextStyle(fontSize: 14, color: textColor),
             ),
             if (widget.httpLogData.statusCode != null)
               Text(
@@ -88,7 +93,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
         ),
         actions: [
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
+            icon: Icon(Icons.more_vert, color: textColor),
             onSelected: _handleMenuAction,
             itemBuilder:
                 (context) => [
@@ -138,6 +143,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
         bottom: TabBar(
           controller: _tabController,
           labelColor: primaryColor,
+          unselectedLabelColor: textColor.withValues(alpha: 0.7),
           indicatorColor: primaryColor,
           tabs: const [
             Tab(text: 'Overview'),
@@ -155,16 +161,6 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
         ],
       ),
     );
-  }
-
-  Color _getStatusColor() {
-    final statusCode = widget.httpLogData.statusCode;
-    if (statusCode == null) return Colors.grey;
-    if (statusCode >= 200 && statusCode < 300) return Colors.green;
-    if (statusCode >= 300 && statusCode < 400) return Colors.orange;
-    if (statusCode >= 400 && statusCode < 500) return Colors.red;
-    if (statusCode >= 500) return Colors.red[900]!;
-    return Colors.grey;
   }
 
   void _handleMenuAction(String action) {
@@ -262,8 +258,12 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
   }
 
   Widget _buildRequestTab() {
+    final theme = TalkerThemeProvider.of(context);
+
     final data = widget.httpLogData;
     final hasBody = data.requestBody != null || data.fullRequestBody != null;
+    final cardColor = theme.cardColor;
+    final textColor = theme.textColor;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -291,13 +291,13 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey[900],
+                color: cardColor,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 'Empty body request',
                 style: TextStyle(
-                  color: Colors.grey[500],
+                  color: textColor.withValues(alpha: 0.5),
                   fontStyle: FontStyle.italic,
                 ),
               ),
@@ -312,18 +312,25 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
     if (options == null) {
       return const SizedBox.shrink();
     }
+    final theme = TalkerThemeProvider.of(context);
 
     final safeCurl = CurlGenerator.generateSafe(options);
     final fullCurl = CurlGenerator.generateFull(options);
+    final cardColor = theme.cardColor;
+    final textColor = theme.textColor;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            const Text(
+            Text(
               'cURL Command',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
             ),
             const Spacer(),
             Switch(
@@ -336,7 +343,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
             ),
             Text(
               _showFullCurl ? 'Show Full' : 'Hide Auth',
-              style: const TextStyle(fontSize: 12),
+              style: TextStyle(fontSize: 12, color: textColor),
             ),
           ],
         ),
@@ -345,7 +352,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
           width: double.infinity,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.grey[900],
+            color: cardColor,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -362,7 +369,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.copy, color: Colors.white, size: 20),
+                icon: Icon(Icons.copy, color: textColor, size: 20),
                 onPressed: () {
                   Clipboard.setData(
                     ClipboardData(text: _showFullCurl ? fullCurl : safeCurl),
@@ -409,25 +416,92 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
         children: [
           if (data.responseHeaders != null &&
               data.responseHeaders!.isNotEmpty) ...[
-            _buildSectionHeader('Headers'),
-            const SizedBox(height: 8),
-            _buildResponseHeadersView(data.responseHeaders!),
+            _buildCollapsibleSection(
+              title: 'Headers',
+              isExpanded: _responseHeadersExpanded,
+              onToggle: () {
+                setState(() {
+                  _responseHeadersExpanded = !_responseHeadersExpanded;
+                });
+              },
+              child: _buildResponseHeadersView(data.responseHeaders!),
+            ),
             const SizedBox(height: 16),
           ],
-          _buildSectionHeader('Body'),
-          const SizedBox(height: 8),
-          _buildResponseBodyView(),
+          _buildCollapsibleSection(
+            title: 'Body',
+            isExpanded: _responseBodyExpanded,
+            onToggle: () {
+              setState(() {
+                _responseBodyExpanded = !_responseBodyExpanded;
+              });
+            },
+            child: _buildResponseBodyView(),
+          ),
         ],
       ),
     );
   }
 
+  Widget _buildCollapsibleSection({
+    required String title,
+    required bool isExpanded,
+    required VoidCallback onToggle,
+    required Widget child,
+  }) {
+    final theme = TalkerThemeProvider.of(context);
+
+    final textColor = theme.textColor;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: onToggle,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            child: Row(
+              children: [
+                AnimatedRotation(
+                  turns: isExpanded ? 0.25 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Icon(Icons.chevron_right, color: textColor, size: 20),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedCrossFade(
+          firstChild: child,
+          secondChild: const SizedBox.shrink(),
+          crossFadeState:
+              isExpanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+          duration: const Duration(milliseconds: 200),
+        ),
+      ],
+    );
+  }
+
   Widget _buildInfoCard(String title, List<Widget> children) {
+    final theme = TalkerThemeProvider.of(context);
+
+    final cardColor = theme.cardColor;
+    final textColor = theme.textColor;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey[850],
+        color: cardColor,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -435,7 +509,11 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
         children: [
           Text(
             title,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+            ),
           ),
           const SizedBox(height: 8),
           ...children,
@@ -445,6 +523,10 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
   }
 
   Widget _buildInfoRow(String label, String value) {
+    final theme = TalkerThemeProvider.of(context);
+
+    final textColor = theme.textColor;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -454,11 +536,17 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
             width: 120,
             child: Text(
               label,
-              style: TextStyle(color: Colors.grey[400], fontSize: 12),
+              style: TextStyle(
+                color: textColor.withValues(alpha: 0.6),
+                fontSize: 12,
+              ),
             ),
           ),
           Expanded(
-            child: SelectableText(value, style: const TextStyle(fontSize: 12)),
+            child: SelectableText(
+              value,
+              style: TextStyle(fontSize: 12, color: textColor),
+            ),
           ),
         ],
       ),
@@ -466,18 +554,28 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
   }
 
   Widget _buildSectionHeader(String title) {
+    final theme = TalkerThemeProvider.of(context);
+
     return Text(
       title,
-      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+      style: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.bold,
+        color: theme.textColor,
+      ),
     );
   }
 
   Widget _buildHeadersView(Map<String, dynamic> headers) {
+    final theme = TalkerThemeProvider.of(context);
+
+    final cardColor = theme.cardColor;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey[900],
+        color: cardColor,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -515,11 +613,15 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
   }
 
   Widget _buildResponseHeadersView(Map<String, List<String>> headers) {
+    final theme = TalkerThemeProvider.of(context);
+
+    final cardColor = theme.cardColor;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey[900],
+        color: cardColor,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -557,14 +659,22 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
   }
 
   Widget _buildBodyView(dynamic body, {bool isTruncated = false}) {
+    final theme = TalkerThemeProvider.of(context);
+
+    final cardColor = theme.cardColor;
+    final textColor = theme.textColor;
+
     if (body == null) {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.grey[900],
+          color: cardColor,
           borderRadius: BorderRadius.circular(8),
         ),
-        child: const Text('No body', style: TextStyle(color: Colors.grey)),
+        child: Text(
+          'No body',
+          style: TextStyle(color: textColor.withValues(alpha: 0.5)),
+        ),
       );
     }
 
@@ -582,7 +692,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey[900],
+        color: cardColor,
         borderRadius: BorderRadius.circular(8),
       ),
       child: SelectableText(
@@ -598,6 +708,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
 
   Widget _buildResponseBodyView() {
     final data = widget.httpLogData;
+    final theme = TalkerThemeProvider.of(context);
 
     // Handle image response
     if (data.isImage && data.imageData != null) {
@@ -674,12 +785,12 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.grey[900],
+          color: theme.cardColor,
           borderRadius: BorderRadius.circular(8),
         ),
-        child: const Text(
+        child: Text(
           'No response body',
-          style: TextStyle(color: Colors.grey),
+          style: TextStyle(color: theme.textColor.withValues(alpha: 0.5)),
         ),
       );
     }
@@ -729,7 +840,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey[900],
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(8),
       ),
       child: SelectableText(

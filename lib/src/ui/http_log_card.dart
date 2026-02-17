@@ -5,8 +5,10 @@ import 'package:talker_dio_logger_plus/src/models/curl_generator.dart';
 import 'package:talker_dio_logger_plus/src/models/http_log_data.dart';
 import 'package:talker_dio_logger_plus/src/ui/http_detail_screen.dart';
 import 'package:talker_dio_logger_plus/src/ui/image_preview.dart';
+import 'package:talker_dio_logger_plus/src/ui/talker_theme_provider.dart';
 import 'package:talker_dio_logger_plus/src/utils/size_calculator.dart';
-import 'package:talker_dio_logger_plus/src/utils/talker_compat.dart';
+import 'package:talker_dio_logger_plus/src/utils/status_color.dart';
+import 'package:talker_flutter/talker_flutter.dart';
 
 /// Custom HTTP log card widget with advanced features
 class HttpLogCard extends StatefulWidget {
@@ -17,9 +19,9 @@ class HttpLogCard extends StatefulWidget {
     this.onTap,
     this.expanded = true,
     this.margin,
-    this.backgroundColor,
     this.maxJsonLines = 15,
     this.imagePreviewThreshold = 500 * 1024,
+    this.theme = const TalkerScreenTheme(),
   });
 
   final TalkerData data;
@@ -27,9 +29,12 @@ class HttpLogCard extends StatefulWidget {
   final VoidCallback? onTap;
   final bool expanded;
   final EdgeInsets? margin;
-  final Color? backgroundColor;
   final int maxJsonLines;
   final int imagePreviewThreshold;
+
+  /// Theme configuration for the screen.
+  /// Defaults to [TalkerScreenTheme] with default values.
+  final TalkerScreenTheme theme;
 
   @override
   State<HttpLogCard> createState() => _HttpLogCardState();
@@ -66,23 +71,17 @@ class _HttpLogCardState extends State<HttpLogCard> {
   bool get _isRequest => widget.data is AdvancedDioRequestLog;
   bool get _isError => widget.data is AdvancedDioErrorLog;
 
-  Color get _statusColor {
-    if (_isRequest) return const Color(0xFFF602C1);
-    if (_isError) return Colors.red;
-
-    final statusCode = _httpLogData?.statusCode;
-    if (statusCode == null) return Colors.grey;
-    if (statusCode >= 200 && statusCode < 300) return const Color(0xFF26FF3C);
-    if (statusCode >= 300 && statusCode < 400) return Colors.orange;
-    if (statusCode >= 400) return Colors.red;
-    return Colors.grey;
-  }
+  Color get _statusColor => StatusColorUtil.getLogTypeColor(
+    isRequest: _isRequest,
+    isError: _isError,
+    statusCode: _httpLogData?.statusCode,
+    theme: widget.theme,
+  );
 
   @override
   Widget build(BuildContext context) {
     final httpData = _httpLogData;
-    final bgColor =
-        widget.backgroundColor ?? const Color.fromARGB(255, 49, 49, 49);
+    final bgColor = widget.theme.cardColor;
 
     return Padding(
       padding: widget.margin ?? const EdgeInsets.only(bottom: 8),
@@ -403,20 +402,23 @@ class _HttpLogCardState extends State<HttpLogCard> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder:
-            (context) => HttpDetailScreen(
-              httpLogData: httpData,
-              requestLog:
-                  widget.data is AdvancedDioRequestLog
-                      ? widget.data as AdvancedDioRequestLog
-                      : null,
-              responseLog:
-                  widget.data is AdvancedDioResponseLog
-                      ? widget.data as AdvancedDioResponseLog
-                      : null,
-              errorLog:
-                  widget.data is AdvancedDioErrorLog
-                      ? widget.data as AdvancedDioErrorLog
-                      : null,
+            (context) => TalkerThemeProvider(
+              theme: widget.theme,
+              child: HttpDetailScreen(
+                httpLogData: httpData,
+                requestLog:
+                    widget.data is AdvancedDioRequestLog
+                        ? widget.data as AdvancedDioRequestLog
+                        : null,
+                responseLog:
+                    widget.data is AdvancedDioResponseLog
+                        ? widget.data as AdvancedDioResponseLog
+                        : null,
+                errorLog:
+                    widget.data is AdvancedDioErrorLog
+                        ? widget.data as AdvancedDioErrorLog
+                        : null,
+              ),
             ),
       ),
     );
@@ -451,14 +453,14 @@ Widget buildHttpLogCard(
   BuildContext context,
   TalkerData data, {
   bool expanded = true,
-  Color? backgroundColor,
+  TalkerScreenTheme theme = const TalkerScreenTheme(),
   VoidCallback? onCopyTap,
 }) {
   if (isAdvancedHttpLog(data)) {
     return HttpLogCard(
       data: data,
       expanded: expanded,
-      backgroundColor: backgroundColor,
+      theme: theme,
       onCopyTap: onCopyTap,
     );
   }
@@ -468,7 +470,7 @@ Widget buildHttpLogCard(
   return HttpLogCard(
     data: data,
     expanded: expanded,
-    backgroundColor: backgroundColor,
+    theme: theme,
     onCopyTap: onCopyTap,
   );
 }
