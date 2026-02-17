@@ -185,33 +185,11 @@ class DefaultFileSaver implements FileSaverInterface {
     String? subject,
     String? text,
   }) async {
-    // Try new API first (share_plus 12.x+)
-    try {
-      final dynamic sharePlus = SharePlus.instance;
-      await sharePlus.share(
-        ShareParams(files: files, subject: subject, text: text),
-      );
-      return;
-    } catch (_) {
-      // Fall through to old API
-    }
-
-    // Fallback to old API (share_plus 10.x)
     // ignore: deprecated_member_use
     await Share.shareXFiles(files, subject: subject, text: text);
   }
 
   Future<void> _shareTextInternal(String text, {String? subject}) async {
-    // Try new API first (share_plus 12.x+)
-    try {
-      final dynamic sharePlus = SharePlus.instance;
-      await sharePlus.share(ShareParams(text: text, subject: subject));
-      return;
-    } catch (_) {
-      // Fall through to old API
-    }
-
-    // Fallback to old API (share_plus 10.x)
     // ignore: deprecated_member_use
     await Share.share(text, subject: subject);
   }
