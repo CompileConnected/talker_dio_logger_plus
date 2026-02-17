@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'talker_theme_provider.dart';
+
 /// A searchable and interactive JSON viewer widget
 class SearchableJsonViewer extends StatefulWidget {
   const SearchableJsonViewer({
@@ -93,7 +95,7 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
     setState(() {
       _currentMatchIndex =
           (_currentMatchIndex - 1 + _matchingPathsList.length) %
-              _matchingPathsList.length;
+          _matchingPathsList.length;
     });
   }
 
@@ -176,23 +178,17 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final talkerTheme = TalkerThemeProvider.maybeOf(context);
 
     final colors = _JsonViewerColors(
-      background: widget.backgroundColor ??
-          (isDark ? Colors.grey[900]! : Colors.grey[100]!),
-      text: widget.textColor ?? (isDark ? Colors.white : Colors.black87),
-      key: widget.keyColor ??
-          (isDark ? Colors.purple[200]! : Colors.purple[700]!),
-      string: widget.stringColor ??
-          (isDark ? Colors.green[300]! : Colors.green[700]!),
-      number: widget.numberColor ??
-          (isDark ? Colors.blue[300]! : Colors.blue[700]!),
-      bool: widget.boolColor ??
-          (isDark ? Colors.orange[300]! : Colors.orange[700]!),
-      nullValue:
-          widget.nullColor ?? (isDark ? Colors.red[300]! : Colors.red[700]!),
+      background:
+          widget.backgroundColor ?? talkerTheme?.cardColor ?? Colors.grey[900]!,
+      text: widget.textColor ?? talkerTheme?.textColor ?? Colors.white,
+      key: widget.keyColor ?? Colors.purple[200]!,
+      string: widget.stringColor ?? Colors.green[300]!,
+      number: widget.numberColor ?? Colors.blue[300]!,
+      bool: widget.boolColor ?? Colors.orange[300]!,
+      nullValue: widget.nullColor ?? Colors.red[300]!,
       highlight: widget.highlightColor ?? Colors.yellow.withValues(alpha: 0.3),
     );
 
@@ -209,18 +205,38 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
                   controller: _searchController,
                   decoration: InputDecoration(
                     hintText: 'Search JSON...',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              _searchController.clear();
-                            },
-                          )
-                        : null,
+                    hintStyle: TextStyle(
+                      color: colors.text.withValues(alpha: 0.5),
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search,
+                      color: colors.text.withValues(alpha: 0.7),
+                    ),
+                    suffixIcon:
+                        _searchQuery.isNotEmpty
+                            ? IconButton(
+                              icon: Icon(
+                                Icons.clear,
+                                color: colors.text.withValues(alpha: 0.7),
+                              ),
+                              onPressed: () {
+                                _searchController.clear();
+                              },
+                            )
+                            : null,
                     isDense: true,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(
+                        color: colors.text.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: colors.key),
                     ),
                   ),
                   style: TextStyle(color: colors.text),
@@ -228,20 +244,30 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
               ),
               const SizedBox(width: 8),
               IconButton(
-                icon: const Icon(Icons.unfold_more),
+                icon: Icon(
+                  Icons.unfold_more,
+                  color: colors.text.withValues(alpha: 0.7),
+                ),
                 onPressed: _expandAllPaths,
                 tooltip: 'Expand All',
               ),
               IconButton(
-                icon: const Icon(Icons.unfold_less),
+                icon: Icon(
+                  Icons.unfold_less,
+                  color: colors.text.withValues(alpha: 0.7),
+                ),
                 onPressed: _collapseAll,
                 tooltip: 'Collapse All',
               ),
               IconButton(
-                icon: const Icon(Icons.copy),
+                icon: Icon(
+                  Icons.copy,
+                  color: colors.text.withValues(alpha: 0.7),
+                ),
                 onPressed: () {
-                  final jsonString =
-                      const JsonEncoder.withIndent('  ').convert(widget.data);
+                  final jsonString = const JsonEncoder.withIndent(
+                    '  ',
+                  ).convert(widget.data);
                   Clipboard.setData(ClipboardData(text: jsonString));
                   widget.onCopy?.call();
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -268,20 +294,32 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
                 ),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.keyboard_arrow_up, size: 20),
+                  icon: Icon(
+                    Icons.keyboard_arrow_up,
+                    size: 20,
+                    color: colors.text.withValues(alpha: 0.7),
+                  ),
                   onPressed:
                       _matchingPathsList.isEmpty ? null : _goToPreviousMatch,
                   tooltip: 'Previous Match',
-                  constraints:
-                      const BoxConstraints(minWidth: 36, minHeight: 36),
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 36,
+                  ),
                   padding: EdgeInsets.zero,
                 ),
                 IconButton(
-                  icon: const Icon(Icons.keyboard_arrow_down, size: 20),
+                  icon: Icon(
+                    Icons.keyboard_arrow_down,
+                    size: 20,
+                    color: colors.text.withValues(alpha: 0.7),
+                  ),
                   onPressed: _matchingPathsList.isEmpty ? null : _goToNextMatch,
                   tooltip: 'Next Match',
-                  constraints:
-                      const BoxConstraints(minWidth: 36, minHeight: 36),
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 36,
+                  ),
                   padding: EdgeInsets.zero,
                 ),
               ],
@@ -292,9 +330,16 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
           child: Container(
             width: double.infinity,
             color: colors.background,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(12),
-              child: _buildJsonView(widget.data, '', 0, colors),
+            child: Scrollbar(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(12),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: IntrinsicWidth(
+                    child: _buildJsonView(widget.data, '', 0, colors),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
@@ -303,7 +348,11 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
   }
 
   Widget _buildJsonView(
-      dynamic data, String path, int indent, _JsonViewerColors colors) {
+    dynamic data,
+    String path,
+    int indent,
+    _JsonViewerColors colors,
+  ) {
     if (data is Map) {
       return _buildMapView(data, path, indent, colors);
     } else if (data is List) {
@@ -314,7 +363,11 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
   }
 
   Widget _buildMapView(
-      Map data, String path, int indent, _JsonViewerColors colors) {
+    Map data,
+    String path,
+    int indent,
+    _JsonViewerColors colors,
+  ) {
     final isExpanded = _expandedPaths.contains(path);
     final entries = data.entries.toList();
 
@@ -355,44 +408,49 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
             padding: EdgeInsets.only(left: 16.0 * (indent + 1)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: entries.map((entry) {
-                final key = entry.key.toString();
-                final value = entry.value;
-                final childPath = '$path/$key';
-                final isMatch = _matchingPaths.contains(childPath) ||
-                    (_searchQuery.length >= 2 &&
-                        key.toLowerCase().contains(_searchQuery));
-                final isCurrentMatch = _matchingPathsList.isNotEmpty &&
-                    _currentMatchIndex < _matchingPathsList.length &&
-                    _matchingPathsList[_currentMatchIndex] == childPath;
+              children:
+                  entries.map((entry) {
+                    final key = entry.key.toString();
+                    final value = entry.value;
+                    final childPath = '$path/$key';
+                    final isMatch =
+                        _matchingPaths.contains(childPath) ||
+                        (_searchQuery.length >= 2 &&
+                            key.toLowerCase().contains(_searchQuery));
+                    final isCurrentMatch =
+                        _matchingPathsList.isNotEmpty &&
+                        _currentMatchIndex < _matchingPathsList.length &&
+                        _matchingPathsList[_currentMatchIndex] == childPath;
 
-                return Container(
-                  decoration: BoxDecoration(
-                    color: isCurrentMatch
-                        ? colors.highlight.withValues(alpha: 0.6)
-                        : (isMatch ? colors.highlight : null),
-                    border: isCurrentMatch
-                        ? Border.all(color: Colors.orange, width: 2)
-                        : null,
-                    borderRadius:
-                        isCurrentMatch ? BorderRadius.circular(4) : null,
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildHighlightedText(
-                        '"$key": ',
-                        colors.key,
-                        colors,
+                    return Container(
+                      decoration: BoxDecoration(
+                        color:
+                            isCurrentMatch
+                                ? colors.highlight.withValues(alpha: 0.6)
+                                : (isMatch ? colors.highlight : null),
+                        border:
+                            isCurrentMatch
+                                ? Border.all(color: Colors.orange, width: 2)
+                                : null,
+                        borderRadius:
+                            isCurrentMatch ? BorderRadius.circular(4) : null,
                       ),
-                      Expanded(
-                        child: _buildJsonView(
-                            value, childPath, indent + 1, colors),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildHighlightedText('"$key": ', colors.key, colors),
+                          Expanded(
+                            child: _buildJsonView(
+                              value,
+                              childPath,
+                              indent + 1,
+                              colors,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                );
-              }).toList(),
+                    );
+                  }).toList(),
             ),
           ),
       ],
@@ -400,7 +458,11 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
   }
 
   Widget _buildListView(
-      List data, String path, int indent, _JsonViewerColors colors) {
+    List data,
+    String path,
+    int indent,
+    _JsonViewerColors colors,
+  ) {
     final isExpanded = _expandedPaths.contains(path);
 
     if (data.isEmpty) {
@@ -443,18 +505,21 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
               children: List.generate(data.length, (index) {
                 final childPath = '$path[$index]';
                 final isMatch = _matchingPaths.contains(childPath);
-                final isCurrentMatch = _matchingPathsList.isNotEmpty &&
+                final isCurrentMatch =
+                    _matchingPathsList.isNotEmpty &&
                     _currentMatchIndex < _matchingPathsList.length &&
                     _matchingPathsList[_currentMatchIndex] == childPath;
 
                 return Container(
                   decoration: BoxDecoration(
-                    color: isCurrentMatch
-                        ? colors.highlight.withValues(alpha: 0.6)
-                        : (isMatch ? colors.highlight : null),
-                    border: isCurrentMatch
-                        ? Border.all(color: Colors.orange, width: 2)
-                        : null,
+                    color:
+                        isCurrentMatch
+                            ? colors.highlight.withValues(alpha: 0.6)
+                            : (isMatch ? colors.highlight : null),
+                    border:
+                        isCurrentMatch
+                            ? Border.all(color: Colors.orange, width: 2)
+                            : null,
                     borderRadius:
                         isCurrentMatch ? BorderRadius.circular(4) : null,
                   ),
@@ -464,11 +529,16 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
                       Text(
                         '[$index]: ',
                         style: TextStyle(
-                            color: colors.text.withValues(alpha: 0.7)),
+                          color: colors.text.withValues(alpha: 0.7),
+                        ),
                       ),
                       Expanded(
                         child: _buildJsonView(
-                            data[index], childPath, indent + 1, colors),
+                          data[index],
+                          childPath,
+                          indent + 1,
+                          colors,
+                        ),
                       ),
                     ],
                   ),
@@ -482,7 +552,8 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
 
   Widget _buildValueView(dynamic data, String path, _JsonViewerColors colors) {
     final isMatch = _matchingPaths.contains(path);
-    final isCurrentMatch = _matchingPathsList.isNotEmpty &&
+    final isCurrentMatch =
+        _matchingPathsList.isNotEmpty &&
         _currentMatchIndex < _matchingPathsList.length &&
         _matchingPathsList[_currentMatchIndex] == path;
 
@@ -508,9 +579,10 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
 
     return Container(
       decoration: BoxDecoration(
-        color: isCurrentMatch
-            ? colors.highlight.withValues(alpha: 0.6)
-            : (isMatch ? colors.highlight : null),
+        color:
+            isCurrentMatch
+                ? colors.highlight.withValues(alpha: 0.6)
+                : (isMatch ? colors.highlight : null),
         border:
             isCurrentMatch ? Border.all(color: Colors.orange, width: 2) : null,
         borderRadius: isCurrentMatch ? BorderRadius.circular(4) : null,
@@ -520,7 +592,10 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
   }
 
   Widget _buildHighlightedText(
-      String text, Color color, _JsonViewerColors colors) {
+    String text,
+    Color color,
+    _JsonViewerColors colors,
+  ) {
     if (_searchQuery.length < 2) {
       return Text(text, style: TextStyle(color: color));
     }
@@ -532,28 +607,31 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
     while (true) {
       final index = lowerText.indexOf(_searchQuery, start);
       if (index == -1) {
-        matches.add(TextSpan(
-          text: text.substring(start),
-          style: TextStyle(color: color),
-        ));
+        matches.add(
+          TextSpan(text: text.substring(start), style: TextStyle(color: color)),
+        );
         break;
       }
 
       if (index > start) {
-        matches.add(TextSpan(
-          text: text.substring(start, index),
-          style: TextStyle(color: color),
-        ));
+        matches.add(
+          TextSpan(
+            text: text.substring(start, index),
+            style: TextStyle(color: color),
+          ),
+        );
       }
 
-      matches.add(TextSpan(
-        text: text.substring(index, index + _searchQuery.length),
-        style: TextStyle(
-          color: color,
-          backgroundColor: colors.highlight,
-          fontWeight: FontWeight.bold,
+      matches.add(
+        TextSpan(
+          text: text.substring(index, index + _searchQuery.length),
+          style: TextStyle(
+            color: color,
+            backgroundColor: colors.highlight,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-      ));
+      );
 
       start = index + _searchQuery.length;
     }
