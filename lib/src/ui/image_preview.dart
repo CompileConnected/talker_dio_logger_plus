@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:talker_dio_logger_plus/src/utils/file_saver.dart';
+import 'package:talker_dio_logger_plus/src/utils/file_saver_interface.dart';
 import 'package:talker_dio_logger_plus/src/utils/size_calculator.dart';
 
 /// Widget to display image preview
@@ -64,16 +65,17 @@ class ImagePreview extends StatelessWidget {
                   if (wasSynchronouslyLoaded) return child;
                   return AnimatedSwitcher(
                     duration: const Duration(milliseconds: 200),
-                    child: frame != null
-                        ? child
-                        : placeholder ??
-                            Container(
-                              height: 100,
-                              color: Colors.grey[800],
-                              child: const Center(
-                                child: CircularProgressIndicator(),
-                              ),
-                            ),
+                    child:
+                        frame != null
+                            ? child
+                            : placeholder ??
+                                Container(
+                                  height: 100,
+                                  color: Colors.grey[800],
+                                  child: const Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                ),
                   );
                 },
               ),
@@ -90,10 +92,7 @@ class ImagePreview extends StatelessWidget {
                 ),
                 child: Text(
                   SizeCalculator.formatBytes(imageData.length),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                  ),
+                  style: const TextStyle(color: Colors.white, fontSize: 10),
                 ),
               ),
             ),
@@ -132,11 +131,17 @@ class FullScreenImageViewer extends StatelessWidget {
     required this.imageData,
     this.title,
     this.mimeType,
+    this.fileSaver,
   });
 
   final Uint8List imageData;
   final String? title;
   final String? mimeType;
+
+  /// Custom file saver. If not provided, uses [DefaultFileSaver].
+  final FileSaverInterface? fileSaver;
+
+  FileSaverInterface get _fileSaver => fileSaver ?? const DefaultFileSaver();
 
   @override
   Widget build(BuildContext context) {
@@ -199,15 +204,15 @@ class FullScreenImageViewer extends StatelessWidget {
     final ext = mimeType != null ? _getExtension(mimeType!) : '.png';
     final filename = 'image_${DateTime.now().millisecondsSinceEpoch}$ext';
 
-    final path = await FileSaver.saveToFile(
+    final path = await _fileSaver.saveToFile(
       filename: filename,
       data: imageData,
     );
 
     if (path != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Image saved to $path')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Image saved to $path')));
     }
   }
 
@@ -215,13 +220,13 @@ class FullScreenImageViewer extends StatelessWidget {
     final ext = mimeType != null ? _getExtension(mimeType!) : '.png';
     final filename = 'image_${DateTime.now().millisecondsSinceEpoch}$ext';
 
-    final path = await FileSaver.saveToFile(
+    final path = await _fileSaver.saveToFile(
       filename: filename,
       data: imageData,
     );
 
     if (path != null) {
-      await FileSaver.shareFile(filepath: path, subject: 'Shared Image');
+      await _fileSaver.shareFile(filepath: path, subject: 'Shared Image');
     }
   }
 
@@ -237,11 +242,7 @@ class FullScreenImageViewer extends StatelessWidget {
 
 /// Image placeholder widget for large images
 class ImagePlaceholder extends StatelessWidget {
-  const ImagePlaceholder({
-    super.key,
-    required this.size,
-    this.onTap,
-  });
+  const ImagePlaceholder({super.key, required this.size, this.onTap});
 
   final int size;
   final VoidCallback? onTap;
@@ -279,4 +280,3 @@ class ImagePlaceholder extends StatelessWidget {
     );
   }
 }
-

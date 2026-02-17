@@ -1,0 +1,23 @@
+# Example app
+example/
+
+# Build outputs
+build/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+
+# Git files
+.git/
+.gitignore
+
+# Test coverage
+coverage/
+
+# Other
+.dart_tool/
+.packages
+pubspec.lock
+

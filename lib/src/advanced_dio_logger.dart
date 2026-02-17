@@ -1,8 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:talker/talker.dart';
-import 'package:talker_dio_logger_plus/src/advanced_dio_logs.dart';
 import 'package:talker_dio_logger_plus/src/advanced_dio_logger_settings.dart';
+import 'package:talker_dio_logger_plus/src/advanced_dio_logs.dart';
+import 'package:talker_dio_logger_plus/src/utils/talker_compat.dart';
 
 /// Advanced Dio HTTP client logger with rich features
 ///
@@ -19,11 +19,8 @@ class AdvancedDioLogger extends Interceptor {
     this.settings = const AdvancedDioLoggerSettings(),
   }) {
     _talker = talker ?? Talker();
-    _talker.settings.registerKeys([
-      TalkerKey.httpRequest,
-      TalkerKey.httpResponse,
-      TalkerKey.httpError,
-    ]);
+    // Register HTTP log keys for filtering (version-compatible)
+    _talker.registerHttpLogKeys();
   }
 
   /// Timestamp key for response time calculation
@@ -43,10 +40,7 @@ class AdvancedDioLogger extends Interceptor {
   }
 
   @override
-  void onRequest(
-    RequestOptions options,
-    RequestInterceptorHandler handler,
-  ) {
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     // Add timestamp for response time calculation
     if (settings.enabled && settings.printResponseTime) {
       options.extra[kTimeStampKey] = DateTime.now().millisecondsSinceEpoch;
@@ -145,4 +139,3 @@ class AdvancedDioLogger extends Interceptor {
     }
   }
 }
-

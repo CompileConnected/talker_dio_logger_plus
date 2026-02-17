@@ -25,6 +25,7 @@ Advanced and feature-rich Dio HTTP client logger built on top of [Talker](https:
 - **Download as ZIP** - Export request/response as a ZIP file (iOS/Android/Web compatible)
 - **Share** - Share logs via system share dialog
 - **Copy** - Copy individual sections or full cURL command
+- **Pluggable File Saver** - Customize or disable file saving behavior
 
 ### 📱 Detail View Features
 - **Tabbed Interface** - Overview, Request, Response, and cURL tabs
@@ -72,7 +73,7 @@ void main() {
 ### AdvancedDioLoggerSettings
 
 ```dart
-const AdvancedDioLoggerSettings(
+AdvancedDioLoggerSettings(
   // Enable/Disable
   enabled: true,
   logLevel: LogLevel.debug,
@@ -105,6 +106,9 @@ const AdvancedDioLoggerSettings(
   enableImagePreview: true,
   enableHtmlPreview: true,
   enableDownload: true,
+  
+  // Custom file saver (optional)
+  fileSaver: const DefaultFileSaver(), // or NoOpFileSaver() or custom
   
   // Filters
   requestFilter: (options) => true,
@@ -152,19 +156,6 @@ final fullCurl = log.curlCommandFull;
 // Output: curl -X POST 'https://api.example.com' -H 'Authorization: Bearer actual_token'
 ```
 
-### Manual cURL Generation
-```dart
-// Safe (hidden auth)
-final curl = CurlGenerator.generateSafe(
-  requestOptions,
-  hiddenHeaders: {'authorization', 'x-api-key'},
-  hideAuthorizationValue: true,
-);
-
-// Full (all values visible)
-final fullCurl = CurlGenerator.generateFull(requestOptions);
-```
-
 ## JSON Viewer
 
 The `SearchableJsonViewer` widget provides:
@@ -173,24 +164,77 @@ The `SearchableJsonViewer` widget provides:
 - Copy entire JSON
 - Syntax highlighting for different types
 
+## Custom File Saver
+
+The package provides a pluggable file saving system through `FileSaverInterface`. This allows you to:
+
+- Use the default implementation (`DefaultFileSaver`)
+- Disable file operations (`NoOpFileSaver`)
+- Provide your own custom implementation
+
+### Default Behavior
+
+By default, the package uses `DefaultFileSaver` which requires `path_provider`, `archive`, and `share_plus` packages.
+
+### Disable File Saving
+
+If you don't need file saving/sharing functionality:
+
 ```dart
-SearchableJsonViewer(
-  data: jsonData,
-  initiallyExpanded: true,
-  highlightColor: Colors.yellow.withOpacity(0.3),
-)
+final logger = AdvancedDioLogger(
+  settings: AdvancedDioLoggerSettings(
+    fileSaver: const NoOpFileSaver(),
+  ),
+);
 ```
 
-## Download & Share
+### Custom Implementation
 
-### Download as ZIP
-```dart
-final path = await FileSaver.saveHttpLogToZip(httpLogData);
-```
+Create your own file saver by implementing `FileSaverInterface`:
 
-### Share
 ```dart
-await FileSaver.saveAndShareHttpLog(httpLogData);
+class MyCustomFileSaver implements FileSaverInterface {
+  @override
+  Future<String?> saveToFile({
+    required String filename,
+    required dynamic data,
+    String? directory,
+  }) async {
+    // Your custom save logic
+  }
+
+  @override
+  Future<String?> saveHttpLogToZip(HttpLogData logData, {String? filename}) async {
+    // Your custom ZIP creation logic
+  }
+
+  @override
+  Future<void> shareFile({required String filepath, String? subject, String? text}) async {
+    // Your custom share logic
+  }
+
+  @override
+  Future<void> shareText(String text, {String? subject}) async {
+    // Your custom text share logic
+  }
+
+  @override
+  Future<void> saveAndShareHttpLog(HttpLogData logData) async {
+    // Your custom save and share logic
+  }
+
+  @override
+  Uint8List? getBytes(dynamic data) {
+    // Convert data to bytes
+  }
+}
+
+// Use it
+final logger = AdvancedDioLogger(
+  settings: AdvancedDioLoggerSettings(
+    fileSaver: MyCustomFileSaver(),
+  ),
+);
 ```
 
 ## Content Type Detection
@@ -227,4 +271,3 @@ The logger automatically detects content types:
 ## License
 
 MIT License
-

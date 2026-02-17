@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:talker/talker.dart';
 import 'package:talker_dio_logger_plus/src/advanced_dio_logs.dart';
 import 'package:talker_dio_logger_plus/src/models/curl_generator.dart';
 import 'package:talker_dio_logger_plus/src/models/http_log_data.dart';
 import 'package:talker_dio_logger_plus/src/ui/http_detail_screen.dart';
 import 'package:talker_dio_logger_plus/src/ui/image_preview.dart';
 import 'package:talker_dio_logger_plus/src/utils/size_calculator.dart';
+import 'package:talker_dio_logger_plus/src/utils/talker_compat.dart';
 
 /// Custom HTTP log card widget with advanced features
 class HttpLogCard extends StatefulWidget {
@@ -108,10 +108,7 @@ class _HttpLogCardState extends State<HttpLogCard> {
                 httpData?.formattedUrl ?? widget.data.message ?? '',
                 maxLines: _expanded ? null : 2,
                 overflow: _expanded ? null : TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: _statusColor,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: _statusColor, fontSize: 12),
               ),
               // Expanded content
               if (_expanded) ...[
@@ -176,10 +173,7 @@ class _HttpLogCardState extends State<HttpLogCard> {
           const SizedBox(width: 4),
           Text(
             '${httpData!.responseTime}ms',
-            style: TextStyle(
-              color: Colors.grey[400],
-              fontSize: 10,
-            ),
+            style: TextStyle(color: Colors.grey[400], fontSize: 10),
           ),
           const SizedBox(width: 8),
         ],
@@ -206,10 +200,7 @@ class _HttpLogCardState extends State<HttpLogCard> {
         // Timestamp
         Text(
           _formatTime(httpData?.timestamp ?? DateTime.now()),
-          style: TextStyle(
-            color: Colors.grey[500],
-            fontSize: 10,
-          ),
+          style: TextStyle(color: Colors.grey[500], fontSize: 10),
         ),
       ],
     );
@@ -220,10 +211,7 @@ class _HttpLogCardState extends State<HttpLogCard> {
     if (httpData == null) {
       return Text(
         widget.data.generateTextMessage(),
-        style: TextStyle(
-          color: _statusColor,
-          fontSize: 12,
-        ),
+        style: TextStyle(color: _statusColor, fontSize: 12),
       );
     }
 
@@ -414,28 +402,29 @@ class _HttpLogCardState extends State<HttpLogCard> {
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => HttpDetailScreen(
-          httpLogData: httpData,
-          requestLog: widget.data is AdvancedDioRequestLog
-              ? widget.data as AdvancedDioRequestLog
-              : null,
-          responseLog: widget.data is AdvancedDioResponseLog
-              ? widget.data as AdvancedDioResponseLog
-              : null,
-          errorLog: widget.data is AdvancedDioErrorLog
-              ? widget.data as AdvancedDioErrorLog
-              : null,
-        ),
+        builder:
+            (context) => HttpDetailScreen(
+              httpLogData: httpData,
+              requestLog:
+                  widget.data is AdvancedDioRequestLog
+                      ? widget.data as AdvancedDioRequestLog
+                      : null,
+              responseLog:
+                  widget.data is AdvancedDioResponseLog
+                      ? widget.data as AdvancedDioResponseLog
+                      : null,
+              errorLog:
+                  widget.data is AdvancedDioErrorLog
+                      ? widget.data as AdvancedDioErrorLog
+                      : null,
+            ),
       ),
     );
   }
 
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-      ),
+      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
     );
   }
 
@@ -447,10 +436,8 @@ class _HttpLogCardState extends State<HttpLogCard> {
 }
 
 /// Builder function type for HTTP log cards
-typedef HttpLogCardBuilder = Widget Function(
-  BuildContext context,
-  TalkerData data,
-);
+typedef HttpLogCardBuilder =
+    Widget Function(BuildContext context, TalkerData data);
 
 /// Returns true if the TalkerData is from the advanced dio logger
 bool isAdvancedHttpLog(TalkerData data) {

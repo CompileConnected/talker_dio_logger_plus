@@ -5,14 +5,21 @@ import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:talker_dio_logger_plus/src/models/http_log_data.dart';
 import 'package:talker_dio_logger_plus/src/models/content_type_detector.dart';
+import 'package:talker_dio_logger_plus/src/models/http_log_data.dart';
+import 'package:talker_dio_logger_plus/src/utils/file_saver_interface.dart';
 import 'package:talker_dio_logger_plus/src/utils/size_calculator.dart';
 
-/// Utility class for saving and sharing files
-class FileSaver {
-  /// Save data to file and get the path
-  static Future<String?> saveToFile({
+/// Default implementation of [FileSaverInterface].
+///
+/// Uses path_provider, archive, and share_plus packages for
+/// file operations. If you want to avoid these dependencies,
+/// provide your own implementation of [FileSaverInterface].
+class DefaultFileSaver implements FileSaverInterface {
+  const DefaultFileSaver();
+
+  @override
+  Future<String?> saveToFile({
     required String filename,
     required dynamic data,
     String? directory,
@@ -36,13 +43,13 @@ class FileSaver {
 
       return file.path;
     } catch (e) {
-      debugPrint('FileSaver error: $e');
+      debugPrint('DefaultFileSaver error: $e');
       return null;
     }
   }
 
-  /// Save HTTP log data to a ZIP file
-  static Future<String?> saveHttpLogToZip(
+  @override
+  Future<String?> saveHttpLogToZip(
     HttpLogData logData, {
     String? filename,
   }) async {
@@ -56,30 +63,36 @@ class FileSaver {
 
       // Add request info
       final requestInfo = _buildRequestInfo(logData);
-      archive.addFile(ArchiveFile(
-        '$baseName/request.txt',
-        requestInfo.length,
-        utf8.encode(requestInfo),
-      ));
+      archive.addFile(
+        ArchiveFile(
+          '$baseName/request.txt',
+          requestInfo.length,
+          utf8.encode(requestInfo),
+        ),
+      );
 
       // Add request body if exists
       if (logData.fullRequestBody != null || logData.requestBody != null) {
         final requestBody = logData.fullRequestBody ?? logData.requestBody;
         final requestBodyStr = _convertToString(requestBody);
-        archive.addFile(ArchiveFile(
-          '$baseName/request_body.json',
-          requestBodyStr.length,
-          utf8.encode(requestBodyStr),
-        ));
+        archive.addFile(
+          ArchiveFile(
+            '$baseName/request_body.json',
+            requestBodyStr.length,
+            utf8.encode(requestBodyStr),
+          ),
+        );
       }
 
       // Add response info
       final responseInfo = _buildResponseInfo(logData);
-      archive.addFile(ArchiveFile(
-        '$baseName/response.txt',
-        responseInfo.length,
-        utf8.encode(responseInfo),
-      ));
+      archive.addFile(
+        ArchiveFile(
+          '$baseName/response.txt',
+          responseInfo.length,
+          utf8.encode(responseInfo),
+        ),
+      );
 
       // Add response body
       if (logData.fullResponseBody != null || logData.responseBody != null) {
@@ -87,20 +100,25 @@ class FileSaver {
 
         if (logData.isImage && logData.imageData != null) {
           final ext = ContentTypeDetector.getImageExtension(
-              logData.responseHeaders?['content-type']?.first);
-          archive.addFile(ArchiveFile(
-            '$baseName/response_body$ext',
-            logData.imageData!.length,
-            logData.imageData!,
-          ));
+            logData.responseHeaders?['content-type']?.first,
+          );
+          archive.addFile(
+            ArchiveFile(
+              '$baseName/response_body$ext',
+              logData.imageData!.length,
+              logData.imageData!,
+            ),
+          );
         } else {
           final ext = ContentTypeDetector.getFileExtension(logData.contentType);
           final responseBodyStr = _convertToString(responseBody);
-          archive.addFile(ArchiveFile(
-            '$baseName/response_body$ext',
-            responseBodyStr.length,
-            utf8.encode(responseBodyStr),
-          ));
+          archive.addFile(
+            ArchiveFile(
+              '$baseName/response_body$ext',
+              responseBodyStr.length,
+              utf8.encode(responseBodyStr),
+            ),
+          );
         }
       }
 
@@ -113,41 +131,35 @@ class FileSaver {
 
       return zipFile.path;
     } catch (e) {
-      debugPrint('FileSaver.saveHttpLogToZip error: $e');
+      debugPrint('DefaultFileSaver.saveHttpLogToZip error: $e');
       return null;
     }
   }
 
-  /// Share data as file
-  static Future<void> shareFile({
+  @override
+  Future<void> shareFile({
     required String filepath,
     String? subject,
     String? text,
   }) async {
     try {
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(filepath)],
-          subject: subject,
-          text: text,
-        ),
-      );
+      await _shareFiles([XFile(filepath)], subject: subject, text: text);
     } catch (e) {
-      debugPrint('FileSaver.shareFile error: $e');
+      debugPrint('DefaultFileSaver.shareFile error: $e');
     }
   }
 
-  /// Share text content
-  static Future<void> shareText(String text, {String? subject}) async {
+  @override
+  Future<void> shareText(String text, {String? subject}) async {
     try {
-      await SharePlus.instance.share(ShareParams(text: text, subject: subject));
+      await _shareTextInternal(text, subject: subject);
     } catch (e) {
-      debugPrint('FileSaver.shareText error: $e');
+      debugPrint('DefaultFileSaver.shareText error: $e');
     }
   }
 
-  /// Save and share HTTP log
-  static Future<void> saveAndShareHttpLog(HttpLogData logData) async {
+  @override
+  Future<void> saveAndShareHttpLog(HttpLogData logData) async {
     final path = await saveHttpLogToZip(logData);
     if (path != null) {
       await shareFile(
@@ -157,8 +169,8 @@ class FileSaver {
     }
   }
 
-  /// Get Uint8List from various data types
-  static Uint8List? getBytes(dynamic data) {
+  @override
+  Uint8List? getBytes(dynamic data) {
     if (data == null) return null;
     if (data is Uint8List) return data;
     if (data is List<int>) return Uint8List.fromList(data);
@@ -166,8 +178,45 @@ class FileSaver {
     return Uint8List.fromList(utf8.encode(data.toString()));
   }
 
-  /// Get default storage directory
-  static Future<String?> _getDefaultDirectory() async {
+  // Private helper methods
+
+  Future<void> _shareFiles(
+    List<XFile> files, {
+    String? subject,
+    String? text,
+  }) async {
+    // Try new API first (share_plus 12.x+)
+    try {
+      final dynamic sharePlus = SharePlus.instance;
+      await sharePlus.share(
+        ShareParams(files: files, subject: subject, text: text),
+      );
+      return;
+    } catch (_) {
+      // Fall through to old API
+    }
+
+    // Fallback to old API (share_plus 10.x)
+    // ignore: deprecated_member_use
+    await Share.shareXFiles(files, subject: subject, text: text);
+  }
+
+  Future<void> _shareTextInternal(String text, {String? subject}) async {
+    // Try new API first (share_plus 12.x+)
+    try {
+      final dynamic sharePlus = SharePlus.instance;
+      await sharePlus.share(ShareParams(text: text, subject: subject));
+      return;
+    } catch (_) {
+      // Fall through to old API
+    }
+
+    // Fallback to old API (share_plus 10.x)
+    // ignore: deprecated_member_use
+    await Share.share(text, subject: subject);
+  }
+
+  Future<String?> _getDefaultDirectory() async {
     try {
       if (kIsWeb) {
         return null; // Web doesn't support file system access
@@ -180,13 +229,12 @@ class FileSaver {
       }
       return talkerDir.path;
     } catch (e) {
-      debugPrint('FileSaver._getDefaultDirectory error: $e');
+      debugPrint('DefaultFileSaver._getDefaultDirectory error: $e');
       return null;
     }
   }
 
-  /// Build request info text
-  static String _buildRequestInfo(HttpLogData logData) {
+  String _buildRequestInfo(HttpLogData logData) {
     final buffer = StringBuffer();
     buffer.writeln('=== HTTP Request ===');
     buffer.writeln('Method: ${logData.method}');
@@ -213,22 +261,25 @@ class FileSaver {
     return buffer.toString();
   }
 
-  /// Build response info text
-  static String _buildResponseInfo(HttpLogData logData) {
+  String _buildResponseInfo(HttpLogData logData) {
     final buffer = StringBuffer();
     buffer.writeln('=== HTTP Response ===');
-    buffer.writeln('Status: ${logData.statusCode} ${logData.statusMessage ?? ""}');
+    buffer.writeln(
+      'Status: ${logData.statusCode} ${logData.statusMessage ?? ""}',
+    );
     if (logData.responseTime != null) {
       buffer.writeln('Response Time: ${logData.responseTime}ms');
     }
     buffer.writeln('Content Type: ${logData.contentType.name}');
     if (logData.contentLength != null) {
       buffer.writeln(
-          'Content Length: ${SizeCalculator.formatBytes(logData.contentLength!)}');
+        'Content Length: ${SizeCalculator.formatBytes(logData.contentLength!)}',
+      );
     }
     buffer.writeln();
 
-    if (logData.responseHeaders != null && logData.responseHeaders!.isNotEmpty) {
+    if (logData.responseHeaders != null &&
+        logData.responseHeaders!.isNotEmpty) {
       buffer.writeln('Headers:');
       logData.responseHeaders!.forEach((key, values) {
         buffer.writeln('  $key: ${values.join(", ")}');
@@ -243,8 +294,7 @@ class FileSaver {
     return buffer.toString();
   }
 
-  /// Convert data to string representation
-  static String _convertToString(dynamic data) {
+  String _convertToString(dynamic data) {
     if (data == null) return '';
     if (data is String) return data;
     try {
@@ -254,4 +304,3 @@ class FileSaver {
     }
   }
 }
-

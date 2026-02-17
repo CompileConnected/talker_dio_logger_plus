@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:talker/talker.dart';
+import 'package:talker_dio_logger_plus/src/utils/file_saver_interface.dart';
+import 'package:talker_dio_logger_plus/src/utils/talker_compat.dart';
 
 /// Constants for the advanced Dio logger
 ///
@@ -86,10 +87,13 @@ class AdvancedDioLoggerSettings {
     this.printErrorMessage = true,
     this.hiddenHeaders = AdvancedDioLoggerConstants.defaultHiddenHeaders,
     this.hideAuthorizationValue = true,
-    this.truncateThreshold = AdvancedDioLoggerConstants.defaultTruncateThreshold,
+    this.truncateThreshold =
+        AdvancedDioLoggerConstants.defaultTruncateThreshold,
     this.maxDisplaySize = AdvancedDioLoggerConstants.defaultMaxDisplaySize,
-    this.imagePreviewThreshold = AdvancedDioLoggerConstants.defaultImagePreviewThreshold,
-    this.maxInlineJsonLines = AdvancedDioLoggerConstants.defaultMaxInlineJsonLines,
+    this.imagePreviewThreshold =
+        AdvancedDioLoggerConstants.defaultImagePreviewThreshold,
+    this.maxInlineJsonLines =
+        AdvancedDioLoggerConstants.defaultMaxInlineJsonLines,
     this.requestPen,
     this.responsePen,
     this.errorPen,
@@ -102,6 +106,7 @@ class AdvancedDioLoggerSettings {
     this.enableImagePreview = true,
     this.enableHtmlPreview = true,
     this.enableDownload = true,
+    this.fileSaver,
   });
 
   /// Create production-safe settings with minimal logging
@@ -273,6 +278,30 @@ class AdvancedDioLoggerSettings {
   /// Enable download/share functionality
   final bool enableDownload;
 
+  /// Custom file saver implementation
+  ///
+  /// If not provided, uses [DefaultFileSaver] which requires
+  /// path_provider, archive, and share_plus packages.
+  ///
+  /// Provide your own implementation of [FileSaverInterface] to:
+  /// - Use different file storage/sharing mechanisms
+  /// - Avoid including the default dependencies
+  /// - Use [NoOpFileSaver] to disable file operations entirely
+  ///
+  /// Example:
+  /// ```dart
+  /// // Disable file saving
+  /// settings: AdvancedDioLoggerSettings(
+  ///   fileSaver: const NoOpFileSaver(),
+  /// )
+  ///
+  /// // Custom implementation
+  /// settings: AdvancedDioLoggerSettings(
+  ///   fileSaver: MyCustomFileSaver(),
+  /// )
+  /// ```
+  final FileSaverInterface? fileSaver;
+
   /// Copy with method for immutable updates
   AdvancedDioLoggerSettings copyWith({
     bool? enabled,
@@ -305,6 +334,7 @@ class AdvancedDioLoggerSettings {
     bool? enableImagePreview,
     bool? enableHtmlPreview,
     bool? enableDownload,
+    FileSaverInterface? fileSaver,
   }) {
     return AdvancedDioLoggerSettings(
       enabled: enabled ?? this.enabled,
@@ -340,7 +370,7 @@ class AdvancedDioLoggerSettings {
       enableImagePreview: enableImagePreview ?? this.enableImagePreview,
       enableHtmlPreview: enableHtmlPreview ?? this.enableHtmlPreview,
       enableDownload: enableDownload ?? this.enableDownload,
+      fileSaver: fileSaver ?? this.fileSaver,
     );
   }
 }
-

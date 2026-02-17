@@ -7,6 +7,7 @@ import 'package:talker_dio_logger_plus/src/ui/image_preview.dart';
 import 'package:talker_dio_logger_plus/src/ui/searchable_json_viewer.dart';
 import 'package:talker_dio_logger_plus/src/ui/web_view_preview.dart';
 import 'package:talker_dio_logger_plus/src/utils/file_saver.dart';
+import 'package:talker_dio_logger_plus/src/utils/file_saver_interface.dart';
 import 'package:talker_dio_logger_plus/src/utils/size_calculator.dart';
 
 /// Detailed view screen for HTTP logs
@@ -19,6 +20,7 @@ class HttpDetailScreen extends StatefulWidget {
     this.errorLog,
     this.backgroundColor,
     this.primaryColor,
+    this.fileSaver,
   });
 
   final HttpLogData httpLogData;
@@ -28,6 +30,10 @@ class HttpDetailScreen extends StatefulWidget {
   final Color? backgroundColor;
   final Color? primaryColor;
 
+  /// Custom file saver implementation.
+  /// If not provided, uses [DefaultFileSaver].
+  final FileSaverInterface? fileSaver;
+
   @override
   State<HttpDetailScreen> createState() => _HttpDetailScreenState();
 }
@@ -36,6 +42,10 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool _showFullCurl = false;
+
+  /// Get the file saver instance, defaulting to DefaultFileSaver
+  FileSaverInterface get _fileSaver =>
+      widget.fileSaver ?? const DefaultFileSaver();
 
   @override
   void initState() {
@@ -53,7 +63,8 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final bgColor = widget.backgroundColor ??
+    final bgColor =
+        widget.backgroundColor ??
         (isDark ? const Color(0xFF1E1E1E) : Colors.white);
     final primaryColor = widget.primaryColor ?? _getStatusColor();
 
@@ -71,10 +82,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
             if (widget.httpLogData.statusCode != null)
               Text(
                 'Status: ${widget.httpLogData.statusCode}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: primaryColor,
-                ),
+                style: TextStyle(fontSize: 12, color: primaryColor),
               ),
           ],
         ),
@@ -82,48 +90,49 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             onSelected: _handleMenuAction,
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'copy_curl',
-                child: Row(
-                  children: [
-                    Icon(Icons.terminal, size: 20),
-                    SizedBox(width: 8),
-                    Text('Copy cURL'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'copy_curl_safe',
-                child: Row(
-                  children: [
-                    Icon(Icons.security, size: 20),
-                    SizedBox(width: 8),
-                    Text('Copy cURL (hidden auth)'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'download',
-                child: Row(
-                  children: [
-                    Icon(Icons.download, size: 20),
-                    SizedBox(width: 8),
-                    Text('Download as ZIP'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'share',
-                child: Row(
-                  children: [
-                    Icon(Icons.share, size: 20),
-                    SizedBox(width: 8),
-                    Text('Share'),
-                  ],
-                ),
-              ),
-            ],
+            itemBuilder:
+                (context) => [
+                  const PopupMenuItem(
+                    value: 'copy_curl',
+                    child: Row(
+                      children: [
+                        Icon(Icons.terminal, size: 20),
+                        SizedBox(width: 8),
+                        Text('Copy cURL'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'copy_curl_safe',
+                    child: Row(
+                      children: [
+                        Icon(Icons.security, size: 20),
+                        SizedBox(width: 8),
+                        Text('Copy cURL (hidden auth)'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'download',
+                    child: Row(
+                      children: [
+                        Icon(Icons.download, size: 20),
+                        SizedBox(width: 8),
+                        Text('Download as ZIP'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'share',
+                    child: Row(
+                      children: [
+                        Icon(Icons.share, size: 20),
+                        SizedBox(width: 8),
+                        Text('Share'),
+                      ],
+                    ),
+                  ),
+                ],
           ),
         ],
         bottom: TabBar(
@@ -182,16 +191,17 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
       return;
     }
 
-    final curl = safe
-        ? CurlGenerator.generateSafe(options)
-        : CurlGenerator.generateFull(options);
+    final curl =
+        safe
+            ? CurlGenerator.generateSafe(options)
+            : CurlGenerator.generateFull(options);
 
     Clipboard.setData(ClipboardData(text: curl));
     _showSnackBar('cURL command copied to clipboard');
   }
 
   Future<void> _downloadAsZip() async {
-    final path = await FileSaver.saveHttpLogToZip(widget.httpLogData);
+    final path = await _fileSaver.saveHttpLogToZip(widget.httpLogData);
     if (path != null) {
       _showSnackBar('Saved to $path');
     } else {
@@ -200,13 +210,13 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
   }
 
   Future<void> _share() async {
-    await FileSaver.saveAndShareHttpLog(widget.httpLogData);
+    await _fileSaver.saveAndShareHttpLog(widget.httpLogData);
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Widget _buildOverviewTab() {
@@ -222,20 +232,22 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
             _buildInfoRow('Path', data.path),
             if (data.statusCode != null)
               _buildInfoRow(
-                  'Status', '${data.statusCode} ${data.statusMessage ?? ""}'),
+                'Status',
+                '${data.statusCode} ${data.statusMessage ?? ""}',
+              ),
             if (data.responseTime != null)
               _buildInfoRow('Response Time', '${data.responseTime}ms'),
             _buildInfoRow('Timestamp', data.timestamp.toIso8601String()),
             _buildInfoRow('Content Type', data.contentType.name),
             if (data.contentLength != null)
-              _buildInfoRow('Content Length',
-                  SizeCalculator.formatBytes(data.contentLength!)),
+              _buildInfoRow(
+                'Content Length',
+                SizeCalculator.formatBytes(data.contentLength!),
+              ),
           ]),
           const SizedBox(height: 16),
           if (data.error != null)
-            _buildInfoCard('Error', [
-              _buildInfoRow('Message', data.error!),
-            ]),
+            _buildInfoCard('Error', [_buildInfoRow('Message', data.error!)]),
           if (data.requestQueryParams != null &&
               data.requestQueryParams!.isNotEmpty) ...[
             const SizedBox(height: 16),
@@ -311,10 +323,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
           children: [
             const Text(
               'cURL Command',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const Spacer(),
             Switch(
@@ -426,10 +435,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           ...children,
@@ -448,17 +454,11 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
             width: 120,
             child: Text(
               label,
-              style: TextStyle(
-                color: Colors.grey[400],
-                fontSize: 12,
-              ),
+              style: TextStyle(color: Colors.grey[400], fontSize: 12),
             ),
           ),
           Expanded(
-            child: SelectableText(
-              value,
-              style: const TextStyle(fontSize: 12),
-            ),
+            child: SelectableText(value, style: const TextStyle(fontSize: 12)),
           ),
         ],
       ),
@@ -468,10 +468,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
   Widget _buildSectionHeader(String title) {
     return Text(
       title,
-      style: const TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.bold,
-      ),
+      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
     );
   }
 
@@ -485,33 +482,34 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: headers.entries.map((entry) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: RichText(
-              text: TextSpan(
-                children: [
-                  TextSpan(
-                    text: '${entry.key}: ',
-                    style: TextStyle(
-                      color: Colors.purple[300],
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                    ),
+        children:
+            headers.entries.map((entry) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: RichText(
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '${entry.key}: ',
+                        style: TextStyle(
+                          color: Colors.purple[300],
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                        ),
+                      ),
+                      TextSpan(
+                        text: entry.value.toString(),
+                        style: TextStyle(
+                          color: Colors.green[300],
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
-                  TextSpan(
-                    text: entry.value.toString(),
-                    style: TextStyle(
-                      color: Colors.green[300],
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }).toList(),
+                ),
+              );
+            }).toList(),
       ),
     );
   }
@@ -526,33 +524,34 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: headers.entries.map((entry) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: RichText(
-              text: TextSpan(
-                children: [
-                  TextSpan(
-                    text: '${entry.key}: ',
-                    style: TextStyle(
-                      color: Colors.purple[300],
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                    ),
+        children:
+            headers.entries.map((entry) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: RichText(
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '${entry.key}: ',
+                        style: TextStyle(
+                          color: Colors.purple[300],
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                        ),
+                      ),
+                      TextSpan(
+                        text: entry.value.join(', '),
+                        style: TextStyle(
+                          color: Colors.green[300],
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
-                  TextSpan(
-                    text: entry.value.join(', '),
-                    style: TextStyle(
-                      color: Colors.green[300],
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }).toList(),
+                ),
+              );
+            }).toList(),
       ),
     );
   }
@@ -565,10 +564,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
           color: Colors.grey[900],
           borderRadius: BorderRadius.circular(8),
         ),
-        child: const Text(
-          'No body',
-          style: TextStyle(color: Colors.grey),
-        ),
+        child: const Text('No body', style: TextStyle(color: Colors.grey)),
       );
     }
 
@@ -611,18 +607,20 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (context) => FullScreenImageViewer(
-                imageData: data.imageData!,
-                title: 'Response Image',
-                mimeType: data.responseHeaders?['content-type']?.first,
-              ),
+              builder:
+                  (context) => FullScreenImageViewer(
+                    imageData: data.imageData!,
+                    title: 'Response Image',
+                    mimeType: data.responseHeaders?['content-type']?.first,
+                    fileSaver: widget.fileSaver,
+                  ),
             ),
           );
         },
         onSave: () async {
           final ext = data.responseHeaders?['content-type']?.first ?? '.png';
           final filename = 'image_${DateTime.now().millisecondsSinceEpoch}$ext';
-          final path = await FileSaver.saveToFile(
+          final path = await _fileSaver.saveToFile(
             filename: filename,
             data: data.imageData!,
           );
@@ -635,7 +633,8 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
 
     // Handle HTML response
     if (data.isHtml) {
-      final htmlContent = data.fullResponseBody?.toString() ??
+      final htmlContent =
+          data.fullResponseBody?.toString() ??
           data.responseBody?.toString() ??
           '';
       return Column(
@@ -647,10 +646,11 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (context) => FullScreenHtmlPreview(
-                    htmlContent: htmlContent,
-                    title: 'HTML Response',
-                  ),
+                  builder:
+                      (context) => FullScreenHtmlPreview(
+                        htmlContent: htmlContent,
+                        title: 'HTML Response',
+                      ),
                 ),
               );
             },
@@ -704,8 +704,10 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
                   Expanded(
                     child: Text(
                       'Response truncated. Size: ${SizeCalculator.formatBytes(SizeCalculator.calculateSize(data.fullResponseBody))}',
-                      style:
-                          const TextStyle(color: Colors.orange, fontSize: 12),
+                      style: const TextStyle(
+                        color: Colors.orange,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ],

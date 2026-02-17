@@ -2,13 +2,13 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
-import 'package:talker/talker.dart';
 import 'package:talker_dio_logger_plus/src/advanced_dio_logger_settings.dart';
 import 'package:talker_dio_logger_plus/src/models/content_type_detector.dart';
 import 'package:talker_dio_logger_plus/src/models/curl_generator.dart';
 import 'package:talker_dio_logger_plus/src/models/http_log_data.dart';
 import 'package:talker_dio_logger_plus/src/utils/data_truncator.dart';
 import 'package:talker_dio_logger_plus/src/utils/size_calculator.dart';
+import 'package:talker_dio_logger_plus/src/utils/talker_compat.dart';
 
 const _encoder = JsonEncoder.withIndent('  ');
 const _hiddenValue = '*****';
@@ -30,17 +30,17 @@ class AdvancedDioRequestLog extends TalkerLog {
   AnsiPen get pen => settings.requestPen ?? (AnsiPen()..xterm(219));
 
   @override
-  String get key => TalkerKey.httpRequest;
+  String get key => TalkerHttpKeys.httpRequest;
 
   @override
   LogLevel get logLevel => settings.logLevel;
 
   /// Get cURL command with hidden sensitive values
   String get curlCommandSafe => CurlGenerator.generateSafe(
-        requestOptions,
-        hiddenHeaders: settings.hiddenHeaders,
-        hideAuthorizationValue: settings.hideAuthorizationValue,
-      );
+    requestOptions,
+    hiddenHeaders: settings.hiddenHeaders,
+    hideAuthorizationValue: settings.hideAuthorizationValue,
+  );
 
   /// Get full cURL command (with all values visible)
   String get curlCommandFull => CurlGenerator.generateFull(requestOptions);
@@ -58,8 +58,10 @@ class AdvancedDioRequestLog extends TalkerLog {
     try {
       if (settings.printRequestData && data != null) {
         // Check if data should be truncated
-        if (SizeCalculator.shouldTruncate(data,
-            threshold: settings.truncateThreshold)) {
+        if (SizeCalculator.shouldTruncate(
+          data,
+          threshold: settings.truncateThreshold,
+        )) {
           final truncationResult = DataTruncator.truncate(
             data,
             threshold: settings.truncateThreshold,
@@ -70,7 +72,8 @@ class AdvancedDioRequestLog extends TalkerLog {
             buffer.write('\nData: ${_encoder.convert(truncationResult.data)}');
           }
           buffer.write(
-              '\n[Truncated: ${SizeCalculator.formatBytes(truncationResult.originalSize)} - tap for full content]');
+            '\n[Truncated: ${SizeCalculator.formatBytes(truncationResult.originalSize)} - tap for full content]',
+          );
         } else {
           if (data is FormData) {
             buffer.write('\nData: ${_formatFormData(data)}');
@@ -154,8 +157,8 @@ class AdvancedDioResponseLog extends TalkerLog {
     required this.response,
     required this.settings,
     required this.httpLogData,
-  })  : responseTime = _getResponseTime(response.requestOptions),
-        super(message);
+  }) : responseTime = _getResponseTime(response.requestOptions),
+       super(message);
 
   final Response<dynamic> response;
   final AdvancedDioLoggerSettings settings;
@@ -166,7 +169,7 @@ class AdvancedDioResponseLog extends TalkerLog {
   AnsiPen get pen => settings.responsePen ?? (AnsiPen()..xterm(46));
 
   @override
-  String get key => TalkerKey.httpResponse;
+  String get key => TalkerHttpKeys.httpResponse;
 
   @override
   LogLevel get logLevel => settings.logLevel;
@@ -196,15 +199,19 @@ class AdvancedDioResponseLog extends TalkerLog {
     buffer.write('\nContent-Type: ${httpLogData.contentType.name}');
     if (httpLogData.contentLength != null) {
       buffer.write(
-          '\nSize: ${SizeCalculator.formatBytes(httpLogData.contentLength!)}');
+        '\nSize: ${SizeCalculator.formatBytes(httpLogData.contentLength!)}',
+      );
     }
 
     try {
       if (settings.printResponseData && data != null) {
         // Handle different content types
         if (httpLogData.isImage) {
-          buffer.write('\n[Image Data - ${SizeCalculator.formatBytes(httpLogData.approximateResponseSize)}]');
-          if (httpLogData.approximateResponseSize > settings.imagePreviewThreshold) {
+          buffer.write(
+            '\n[Image Data - ${SizeCalculator.formatBytes(httpLogData.approximateResponseSize)}]',
+          );
+          if (httpLogData.approximateResponseSize >
+              settings.imagePreviewThreshold) {
             buffer.write('\n[Too large for preview - tap to view]');
           }
         } else if (httpLogData.isHtml) {
@@ -214,13 +221,16 @@ class AdvancedDioResponseLog extends TalkerLog {
             data,
             threshold: settings.truncateThreshold,
           );
-          final prettyData = settings.responseDataConverter?.call(response) ??
+          final prettyData =
+              settings.responseDataConverter?.call(response) ??
               _encoder.convert(truncationResult.data);
           buffer.write('\nData: $prettyData');
           buffer.write(
-              '\n[Truncated: ${SizeCalculator.formatBytes(truncationResult.originalSize)} - tap for full content]');
+            '\n[Truncated: ${SizeCalculator.formatBytes(truncationResult.originalSize)} - tap for full content]',
+          );
         } else {
-          final prettyData = settings.responseDataConverter?.call(response) ??
+          final prettyData =
+              settings.responseDataConverter?.call(response) ??
               _encoder.convert(data);
           buffer.write('\nData: $prettyData');
         }
@@ -244,8 +254,8 @@ class AdvancedDioErrorLog extends TalkerLog {
     required this.dioException,
     required this.settings,
     required this.httpLogData,
-  })  : responseTime = _getResponseTime(dioException.requestOptions),
-        super(title);
+  }) : responseTime = _getResponseTime(dioException.requestOptions),
+       super(title);
 
   final DioException dioException;
   final AdvancedDioLoggerSettings settings;
@@ -256,17 +266,17 @@ class AdvancedDioErrorLog extends TalkerLog {
   AnsiPen get pen => settings.errorPen ?? (AnsiPen()..red());
 
   @override
-  String get key => TalkerKey.httpError;
+  String get key => TalkerHttpKeys.httpError;
 
   @override
   LogLevel get logLevel => LogLevel.error;
 
   /// Get cURL command with hidden sensitive values
   String get curlCommandSafe => CurlGenerator.generateSafe(
-        dioException.requestOptions,
-        hiddenHeaders: settings.hiddenHeaders,
-        hideAuthorizationValue: settings.hideAuthorizationValue,
-      );
+    dioException.requestOptions,
+    hiddenHeaders: settings.hiddenHeaders,
+    hideAuthorizationValue: settings.hideAuthorizationValue,
+  );
 
   /// Get full cURL command (with all values visible)
   String get curlCommandFull =>
@@ -300,8 +310,10 @@ class AdvancedDioErrorLog extends TalkerLog {
     buffer.write('\nError Type: ${dioException.type.name}');
 
     if (settings.printErrorData && data != null) {
-      if (SizeCalculator.shouldTruncate(data,
-          threshold: settings.truncateThreshold)) {
+      if (SizeCalculator.shouldTruncate(
+        data,
+        threshold: settings.truncateThreshold,
+      )) {
         final truncationResult = DataTruncator.truncate(
           data,
           threshold: settings.truncateThreshold,
@@ -309,7 +321,8 @@ class AdvancedDioErrorLog extends TalkerLog {
         final prettyData = _encoder.convert(truncationResult.data);
         buffer.write('\nData: $prettyData');
         buffer.write(
-            '\n[Truncated: ${SizeCalculator.formatBytes(truncationResult.originalSize)}]');
+          '\n[Truncated: ${SizeCalculator.formatBytes(truncationResult.originalSize)}]',
+        );
       } else {
         final prettyData = _encoder.convert(data);
         buffer.write('\nData: $prettyData');
@@ -348,8 +361,10 @@ HttpLogData createRequestLogData(
   var isRequestTruncated = false;
 
   if (requestBody != null &&
-      SizeCalculator.shouldTruncate(requestBody,
-          threshold: settings.truncateThreshold)) {
+      SizeCalculator.shouldTruncate(
+        requestBody,
+        threshold: settings.truncateThreshold,
+      )) {
     final result = DataTruncator.truncate(
       requestBody,
       threshold: settings.truncateThreshold,
@@ -398,8 +413,10 @@ HttpLogData createResponseLogData(
   // Truncate large response data for display
   if (responseBody != null &&
       contentType != HttpContentType.image &&
-      SizeCalculator.shouldTruncate(responseBody,
-          threshold: settings.truncateThreshold)) {
+      SizeCalculator.shouldTruncate(
+        responseBody,
+        threshold: settings.truncateThreshold,
+      )) {
     final result = DataTruncator.truncate(
       responseBody,
       threshold: settings.truncateThreshold,
@@ -409,7 +426,9 @@ HttpLogData createResponseLogData(
   }
 
   // Process request headers
-  final requestHeaders = Map<String, dynamic>.from(response.requestOptions.headers);
+  final requestHeaders = Map<String, dynamic>.from(
+    response.requestOptions.headers,
+  );
   _processHeaders(requestHeaders, settings);
 
   final queryParams = <String, dynamic>{};
@@ -452,13 +471,16 @@ HttpLogData createErrorLogData(
     contentType = ContentTypeDetector.detectFromResponse(error.response!);
     contentLength = _getContentLength(error.response!);
 
-    if (contentType == HttpContentType.image && error.response!.data is List<int>) {
+    if (contentType == HttpContentType.image &&
+        error.response!.data is List<int>) {
       imageData = Uint8List.fromList(error.response!.data as List<int>);
     }
   }
 
   // Process request headers
-  final requestHeaders = Map<String, dynamic>.from(error.requestOptions.headers);
+  final requestHeaders = Map<String, dynamic>.from(
+    error.requestOptions.headers,
+  );
   _processHeaders(requestHeaders, settings);
 
   final queryParams = <String, dynamic>{};
@@ -491,7 +513,9 @@ HttpLogData createErrorLogData(
 
 /// Process headers to hide sensitive values
 void _processHeaders(
-    Map<String, dynamic> headers, AdvancedDioLoggerSettings settings) {
+  Map<String, dynamic> headers,
+  AdvancedDioLoggerSettings settings,
+) {
   final lowerCaseMap = <String, String>{};
   headers.forEach((key, value) {
     lowerCaseMap[key.toLowerCase()] = key;
@@ -529,4 +553,3 @@ int? _getContentLength(Response response) {
   }
   return null;
 }
-
