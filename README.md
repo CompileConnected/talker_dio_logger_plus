@@ -39,7 +39,7 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  talker_dio_logger_plus: ^1.0.4
+  talker_dio_logger_plus: ^1.0.5
 ```
 
 ## Quick Start
