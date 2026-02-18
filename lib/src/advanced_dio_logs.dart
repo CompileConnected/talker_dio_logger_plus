@@ -16,11 +16,11 @@ const _hiddenValue = '*****';
 /// Advanced HTTP Request Log with detailed data
 class AdvancedDioRequestLog extends TalkerLog {
   AdvancedDioRequestLog(
-    String message, {
+    String super.message, {
     required this.requestOptions,
     required this.settings,
     required this.httpLogData,
-  }) : super(message);
+  });
 
   final RequestOptions requestOptions;
   final AdvancedDioLoggerSettings settings;

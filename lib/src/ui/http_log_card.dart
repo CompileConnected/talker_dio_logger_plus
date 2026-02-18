@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:talker_dio_logger_plus/src/advanced_dio_logs.dart';
@@ -176,6 +178,17 @@ class _HttpLogCardState extends State<HttpLogCard> {
           ),
           const SizedBox(width: 8),
         ],
+        // Response size
+        if (httpData?.approximateResponseSize != null &&
+            httpData!.approximateResponseSize > 0) ...[
+          Icon(Icons.data_usage, size: 12, color: Colors.grey[400]),
+          const SizedBox(width: 4),
+          Text(
+            SizeCalculator.formatBytes(httpData.approximateResponseSize),
+            style: TextStyle(color: Colors.grey[400], fontSize: 10),
+          ),
+          const SizedBox(width: 8),
+        ],
         // Content type badge
         if (httpData?.contentType != null &&
             httpData!.contentType != HttpContentType.unknown) ...[
@@ -228,11 +241,102 @@ class _HttpLogCardState extends State<HttpLogCard> {
         if (_isError && httpData.error != null)
           _buildErrorMessage(httpData.error!),
 
-        // Size info
-        if (httpData.contentLength != null)
-          _buildSizeInfo(httpData.contentLength!),
+        // Show response body if available (for non-image responses)
+        if (!_isRequest && !httpData.isImage && httpData.responseBody != null)
+          _buildResponseBodyPreview(httpData),
       ],
     );
+  }
+
+  Widget _buildResponseBodyPreview(HttpLogData httpData) {
+    final responseBody = httpData.responseBody;
+    if (responseBody == null) return const SizedBox.shrink();
+
+    String displayText;
+    if (responseBody is Map || responseBody is List) {
+      try {
+        const encoder = JsonEncoder.withIndent('  ');
+        displayText = encoder.convert(responseBody);
+      } catch (_) {
+        displayText = responseBody.toString();
+      }
+    } else {
+      displayText = responseBody.toString();
+    }
+
+    // Calculate lines and check if we need to truncate
+    final lines = displayText.split('\n');
+    final shouldTruncate = lines.length > widget.maxJsonLines;
+    final truncatedText =
+        shouldTruncate
+            ? lines.take(widget.maxJsonLines).join('\n')
+            : displayText;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Response',
+                style: TextStyle(
+                  color: Colors.grey[400],
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              if (shouldTruncate)
+                Text(
+                  '${lines.length - widget.maxJsonLines} more lines...',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 10),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          SelectableText(
+            truncatedText,
+            style: TextStyle(
+              color: _getResponseTextColor(httpData.contentType),
+              fontFamily: 'monospace',
+              fontSize: 11,
+            ),
+          ),
+          if (shouldTruncate)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Tap "Detail" to view full response',
+                style: TextStyle(
+                  color: Colors.grey[500],
+                  fontSize: 10,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Color _getResponseTextColor(HttpContentType contentType) {
+    switch (contentType) {
+      case HttpContentType.json:
+        return Colors.green[300]!;
+      case HttpContentType.html:
+        return Colors.orange[300]!;
+      case HttpContentType.xml:
+        return Colors.blue[300]!;
+      default:
+        return Colors.grey[300]!;
+    }
   }
 
   Widget _buildImagePreview(HttpLogData httpData) {
@@ -305,19 +409,6 @@ class _HttpLogCardState extends State<HttpLogCard> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildSizeInfo(int size) {
-    return Row(
-      children: [
-        Icon(Icons.data_usage, size: 12, color: Colors.grey[500]),
-        const SizedBox(width: 4),
-        Text(
-          SizeCalculator.formatBytes(size),
-          style: TextStyle(color: Colors.grey[500], fontSize: 10),
-        ),
-      ],
     );
   }
 

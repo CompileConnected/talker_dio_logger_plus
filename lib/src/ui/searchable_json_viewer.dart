@@ -21,6 +21,7 @@ class SearchableJsonViewer extends StatefulWidget {
     this.boolColor,
     this.nullColor,
     this.onCopy,
+    this.jsonSoftWrapTextValueAtWidth,
   });
 
   final dynamic data;
@@ -35,6 +36,12 @@ class SearchableJsonViewer extends StatefulWidget {
   final Color? boolColor;
   final Color? nullColor;
   final VoidCallback? onCopy;
+
+  /// Width at which to soft wrap string values (in logical pixels).
+  /// When set, long string values will wrap at this width.
+  /// Only affects string values, not keys or JSON structure.
+  /// Set to `null` to disable wrapping (default - uses horizontal scroll).
+  final double? jsonSoftWrapTextValueAtWidth;
 
   @override
   State<SearchableJsonViewer> createState() => _SearchableJsonViewerState();
@@ -405,7 +412,7 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
         ),
         if (isExpanded)
           Padding(
-            padding: EdgeInsets.only(left: 16.0 * (indent + 1)),
+            padding: const EdgeInsets.only(left: 16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children:
@@ -499,7 +506,7 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
         ),
         if (isExpanded)
           Padding(
-            padding: EdgeInsets.only(left: 16.0 * (indent + 1)),
+            padding: const EdgeInsets.only(left: 16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: List.generate(data.length, (index) {
@@ -559,6 +566,7 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
 
     Color color;
     String text;
+    bool isString = false;
 
     if (data == null) {
       color = colors.nullValue;
@@ -572,9 +580,20 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
     } else if (data is String) {
       color = colors.string;
       text = '"$data"';
+      isString = true;
     } else {
       color = colors.text;
       text = data.toString();
+    }
+
+    Widget textWidget = _buildHighlightedText(text, color, colors);
+
+    // Apply soft wrap only to string values when width is specified
+    if (isString && widget.jsonSoftWrapTextValueAtWidth != null) {
+      textWidget = SizedBox(
+        width: widget.jsonSoftWrapTextValueAtWidth,
+        child: textWidget,
+      );
     }
 
     return Container(
@@ -587,7 +606,7 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
             isCurrentMatch ? Border.all(color: Colors.orange, width: 2) : null,
         borderRadius: isCurrentMatch ? BorderRadius.circular(4) : null,
       ),
-      child: _buildHighlightedText(text, color, colors),
+      child: textWidget,
     );
   }
 

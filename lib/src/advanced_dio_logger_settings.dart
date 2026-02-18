@@ -34,6 +34,13 @@ class AdvancedDioLoggerConstants {
   /// without overwhelming the log list. Users can tap for full view.
   static const int defaultMaxInlineJsonLines = 20;
 
+  /// Default width for soft wrapping string values in JSON viewer (in logical pixels)
+  ///
+  /// When set, long string values in the JSON viewer will be soft wrapped
+  /// at this width. Only affects string values, not keys or structure.
+  /// Set to null to disable soft wrapping (default).
+  static const double? defaultJsonSoftWrapTextValueAtWidth = null;
+
   /// Default hidden headers for security
   ///
   /// Why these headers: Most common authentication headers that could
@@ -94,6 +101,8 @@ class AdvancedDioLoggerSettings {
         AdvancedDioLoggerConstants.defaultImagePreviewThreshold,
     this.maxInlineJsonLines =
         AdvancedDioLoggerConstants.defaultMaxInlineJsonLines,
+    this.jsonSoftWrapTextValueAtWidth =
+        AdvancedDioLoggerConstants.defaultJsonSoftWrapTextValueAtWidth,
     this.requestPen,
     this.responsePen,
     this.errorPen,
@@ -222,6 +231,20 @@ class AdvancedDioLoggerSettings {
   /// Maximum JSON lines to show inline
   final int maxInlineJsonLines;
 
+  /// Width at which to soft wrap string values in JSON viewer (in logical pixels)
+  ///
+  /// When set, long string values in the JSON viewer will be constrained
+  /// to this width and soft wrapped. Only affects string values, not keys
+  /// or JSON structure.
+  ///
+  /// Set to `null` to disable soft wrapping (default - allows horizontal scroll).
+  ///
+  /// Example values:
+  /// - `300` - Tight wrapping for narrow screens
+  /// - `500` - Medium wrapping
+  /// - `null` - No wrapping (horizontal scroll for long values)
+  final double? jsonSoftWrapTextValueAtWidth;
+
   /// Custom pen for request logs
   final AnsiPen? requestPen;
 
@@ -322,6 +345,7 @@ class AdvancedDioLoggerSettings {
     int? maxDisplaySize,
     int? imagePreviewThreshold,
     int? maxInlineJsonLines,
+    double? jsonSoftWrapTextValueAtWidth,
     AnsiPen? requestPen,
     AnsiPen? responsePen,
     AnsiPen? errorPen,
@@ -357,6 +381,8 @@ class AdvancedDioLoggerSettings {
       imagePreviewThreshold:
           imagePreviewThreshold ?? this.imagePreviewThreshold,
       maxInlineJsonLines: maxInlineJsonLines ?? this.maxInlineJsonLines,
+      jsonSoftWrapTextValueAtWidth:
+          jsonSoftWrapTextValueAtWidth ?? this.jsonSoftWrapTextValueAtWidth,
       requestPen: requestPen ?? this.requestPen,
       responsePen: responsePen ?? this.responsePen,
       errorPen: errorPen ?? this.errorPen,

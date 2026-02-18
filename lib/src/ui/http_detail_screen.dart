@@ -49,6 +49,12 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
   FileSaverInterface get _fileSaver =>
       widget.fileSaver ?? const DefaultFileSaver();
 
+  /// Get the jsonSoftWrapTextValueAtWidth setting from any available log
+  double? get jsonSoftWrapTextValueAtWidth =>
+      widget.requestLog?.settings.jsonSoftWrapTextValueAtWidth ??
+      widget.responseLog?.settings.jsonSoftWrapTextValueAtWidth ??
+      widget.errorLog?.settings.jsonSoftWrapTextValueAtWidth;
+
   @override
   void initState() {
     super.initState();
@@ -239,6 +245,11 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
               _buildInfoRow(
                 'Content Length',
                 SizeCalculator.formatBytes(data.contentLength!),
+              ),
+            if (data.approximateResponseSize > 0)
+              _buildInfoRow(
+                'Response Size',
+                SizeCalculator.formatBytes(data.approximateResponseSize),
               ),
           ]),
           const SizedBox(height: 16),
@@ -684,6 +695,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
         child: SearchableJsonViewer(
           data: body,
           initiallyExpanded: !isTruncated,
+          jsonSoftWrapTextValueAtWidth: jsonSoftWrapTextValueAtWidth,
         ),
       );
     }
@@ -829,6 +841,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
             child: SearchableJsonViewer(
               data: responseBody,
               initiallyExpanded: !data.isResponseTruncated,
+              jsonSoftWrapTextValueAtWidth: jsonSoftWrapTextValueAtWidth,
             ),
           ),
         ],

@@ -64,6 +64,7 @@ class _HomePageState extends State<HomePage> {
         enableImagePreview: true,
         enableHtmlPreview: true,
         enableDownload: true,
+        jsonSoftWrapTextValueAtWidth: 150,
       ),
     );
 
@@ -136,7 +137,12 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _makeRequest(String url) async {
     try {
-      final response = await _dio.get(url);
+      final response = await _dio.get(
+        url,
+        options: Options(
+          headers: {'Content-type': 'application/json; charset=UTF-8'},
+        ),
+      );
       _showSnackBar('Success: ${response.statusCode}');
     } catch (e) {
       _showSnackBar('Error: $e');

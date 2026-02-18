@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:talker_dio_logger_plus/src/ui/talker_theme_provider.dart';
 
 /// Simple JSON viewer widget for inline display
 class JsonViewer extends StatelessWidget {
@@ -25,13 +26,12 @@ class JsonViewer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final talkerTheme = TalkerThemeProvider.maybeOf(context);
 
     final effectiveTextColor =
-        textColor ?? (isDark ? Colors.green[300] : Colors.green[800]);
+        textColor ?? talkerTheme?.textColor ?? Colors.green[300]!;
     final effectiveBgColor =
-        backgroundColor ?? (isDark ? Colors.grey[900] : Colors.grey[100]);
+        backgroundColor ?? talkerTheme?.cardColor ?? Colors.grey[900]!;
 
     String jsonString;
     try {
@@ -54,13 +54,20 @@ class JsonViewer extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          SelectableText(
-            displayText,
-            style: TextStyle(
-              color: effectiveTextColor,
-              fontSize: fontSize,
-              fontFamily: 'monospace',
+          Scrollbar(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SelectableText(
+                displayText,
+                style: TextStyle(
+                  color: effectiveTextColor,
+                  fontSize: fontSize,
+                  fontFamily: 'monospace',
+                  height: 1.3,
+                ),
+              ),
             ),
           ),
           if (needsTruncation && showExpandButton) ...[
@@ -70,7 +77,7 @@ class JsonViewer extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                  color: effectiveTextColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Row(
@@ -79,15 +86,12 @@ class JsonViewer extends StatelessWidget {
                     Icon(
                       Icons.expand_more,
                       size: 16,
-                      color: theme.colorScheme.primary,
+                      color: effectiveTextColor,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       'Show ${lines.length - maxLines!} more lines',
-                      style: TextStyle(
-                        color: theme.colorScheme.primary,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: effectiveTextColor, fontSize: 12),
                     ),
                   ],
                 ),
@@ -137,4 +141,3 @@ class _ExpandableJsonViewerState extends State<ExpandableJsonViewer> {
     );
   }
 }
-
