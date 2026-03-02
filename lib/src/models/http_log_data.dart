@@ -1,9 +1,6 @@
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
-import 'package:talker_dio_logger_plus/src/advanced_dio_logger_settings.dart';
-import 'package:talker_dio_logger_plus/src/utils/data_truncator.dart';
-import 'package:talker_dio_logger_plus/src/utils/size_calculator.dart';
 
 /// Content type enumeration for HTTP responses
 enum HttpContentType { json, html, xml, text, image, binary, file, unknown }
@@ -18,7 +15,6 @@ class HttpLogData {
     this.requestBody,
     this.requestQueryParams,
     this.responseHeaders,
-    this.responseBody,
     this.statusCode,
     this.statusMessage,
     this.responseTime,
@@ -26,10 +22,8 @@ class HttpLogData {
     this.contentType = HttpContentType.unknown,
     this.contentLength,
     this.imageData,
-    this.isRequestTruncated = false,
-    this.isResponseTruncated = false,
-    this.fullRequestBody,
-    this.fullResponseBody,
+    this.responseBody,
+    this.htmlContent,
     this.requestOptions,
     this.response,
     this.dioException,
@@ -42,7 +36,6 @@ class HttpLogData {
   final dynamic requestBody;
   final Map<String, dynamic>? requestQueryParams;
   final Map<String, List<String>>? responseHeaders;
-  final dynamic responseBody;
   final int? statusCode;
   final String? statusMessage;
   final int? responseTime;
@@ -50,10 +43,15 @@ class HttpLogData {
   final HttpContentType contentType;
   final int? contentLength;
   final Uint8List? imageData;
-  final bool isRequestTruncated;
-  final bool isResponseTruncated;
-  final dynamic fullRequestBody;
-  final dynamic fullResponseBody;
+  final dynamic responseBody;
+
+  /// Raw HTML string for HTML responses.
+  ///
+  /// Stored separately from [responseBody] (which is null for HTML responses)
+  /// so that [WebViewPreview] can render the full HTML while [responseBody]
+  /// remains null — avoiding a duplicate in-memory copy of potentially large
+  /// HTML payloads. Subject to the HTML [DisplayLimit.maxBytes] cap.
+  final String? htmlContent;
 
   // Original Dio objects for advanced operations
   final RequestOptions? requestOptions;
@@ -77,18 +75,16 @@ class HttpLogData {
     HttpContentType.text,
   ].contains(contentType);
 
-  /// Returns true if the data is too large and truncated
-  bool get isTruncated => isRequestTruncated || isResponseTruncated;
-
   /// Calculate approximate size of the response
   int get approximateResponseSize {
     if (contentLength != null && contentLength! > 0) {
       return contentLength!;
     }
+    if (imageData != null) return imageData!.length;
+    if (htmlContent != null) return htmlContent!.length;
     if (responseBody == null) return 0;
     if (responseBody is String) return (responseBody as String).length;
     if (responseBody is List<int>) return (responseBody as List<int>).length;
-    if (imageData != null) return imageData!.length;
     return responseBody.toString().length;
   }
 
@@ -108,6 +104,7 @@ class HttpLogData {
     Map<String, dynamic>? requestQueryParams,
     Map<String, List<String>>? responseHeaders,
     dynamic responseBody,
+    String? htmlContent,
     int? statusCode,
     String? statusMessage,
     int? responseTime,
@@ -115,10 +112,6 @@ class HttpLogData {
     HttpContentType? contentType,
     int? contentLength,
     Uint8List? imageData,
-    bool? isRequestTruncated,
-    bool? isResponseTruncated,
-    dynamic fullRequestBody,
-    dynamic fullResponseBody,
     RequestOptions? requestOptions,
     Response<dynamic>? response,
     DioException? dioException,
@@ -132,6 +125,7 @@ class HttpLogData {
       requestQueryParams: requestQueryParams ?? this.requestQueryParams,
       responseHeaders: responseHeaders ?? this.responseHeaders,
       responseBody: responseBody ?? this.responseBody,
+      htmlContent: htmlContent ?? this.htmlContent,
       statusCode: statusCode ?? this.statusCode,
       statusMessage: statusMessage ?? this.statusMessage,
       responseTime: responseTime ?? this.responseTime,
@@ -139,57 +133,9 @@ class HttpLogData {
       contentType: contentType ?? this.contentType,
       contentLength: contentLength ?? this.contentLength,
       imageData: imageData ?? this.imageData,
-      isRequestTruncated: isRequestTruncated ?? this.isRequestTruncated,
-      isResponseTruncated: isResponseTruncated ?? this.isResponseTruncated,
-      fullRequestBody: fullRequestBody ?? this.fullRequestBody,
-      fullResponseBody: fullResponseBody ?? this.fullResponseBody,
       requestOptions: requestOptions ?? this.requestOptions,
       response: response ?? this.response,
       dioException: dioException ?? this.dioException,
-    );
-  }
-
-  /// Creates a copy of this [HttpLogData] with data truncated according to the
-  /// provided [settings].
-  ///
-  /// This is useful for display purposes where large payloads should be
-  /// shortened while preserving the original data for detailed views.
-  HttpLogData toTruncated(AdvancedDioLoggerSettings settings) {
-    // Truncate request body if needed
-    dynamic truncatedRequestBody = requestBody;
-    var newIsRequestTruncated = isRequestTruncated;
-    if (requestBody != null) {
-      final requestLimit = settings.getDisplayLimit(HttpContentType.unknown);
-      final truncationResult = DataTruncator.truncate(
-        requestBody,
-        threshold: requestLimit.maxBytes,
-      );
-      if (truncationResult != null) {
-        truncatedRequestBody = truncationResult.data;
-        newIsRequestTruncated = true;
-      }
-    }
-
-    // Truncate response body if needed
-    dynamic truncatedResponseBody = responseBody;
-    var newIsResponseTruncated = isResponseTruncated;
-    if (responseBody != null && contentType != HttpContentType.image) {
-      final responseLimit = settings.getDisplayLimit(contentType);
-      final truncationResult = DataTruncator.truncate(
-        responseBody,
-        threshold: responseLimit.maxBytes,
-      );
-      if (truncationResult != null) {
-        truncatedResponseBody = truncationResult.data;
-        newIsResponseTruncated = true;
-      }
-    }
-
-    return copyWith(
-      requestBody: truncatedRequestBody,
-      isRequestTruncated: newIsRequestTruncated,
-      responseBody: truncatedResponseBody,
-      isResponseTruncated: newIsResponseTruncated,
     );
   }
 }

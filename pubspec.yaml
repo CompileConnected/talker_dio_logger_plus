@@ -1,6 +1,6 @@
 name: talker_dio_logger_plus
 description: Advanced and feature-rich Dio HTTP client logger with cURL export, JSON viewer, detail views, image support, and more
-version: 1.0.5
+version: 1.0.6
 
 homepage: https://github.com/CompileConnected/talker_dio_logger_plus
 repository: https://github.com/CompileConnected/talker_dio_logger_plus
@@ -27,6 +27,7 @@ dependencies:
   archive: ^4.0.2
   http_parser: ^4.0.0
   mime: ^2.0.0
+  flutter_inappwebview: ^6.1.5
 
 dev_dependencies:
   flutter_test:

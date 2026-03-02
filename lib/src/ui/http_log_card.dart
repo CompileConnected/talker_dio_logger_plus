@@ -5,12 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:talker_dio_logger_plus/src/advanced_dio_logs.dart';
 import 'package:talker_dio_logger_plus/src/models/curl_generator.dart';
 import 'package:talker_dio_logger_plus/src/models/http_log_data.dart';
-import 'package:talker_dio_logger_plus/src/ui/http_detail_screen.dart';
 import 'package:talker_dio_logger_plus/src/ui/image_preview.dart';
-import 'package:talker_dio_logger_plus/src/ui/talker_theme_provider.dart';
 import 'package:talker_dio_logger_plus/src/utils/size_calculator.dart';
 import 'package:talker_dio_logger_plus/src/utils/status_color.dart';
 import 'package:talker_flutter/talker_flutter.dart';
+
+import '../../talker_dio_logger_plus.dart';
 
 /// Custom HTTP log card widget with advanced features
 class HttpLogCard extends StatefulWidget {
@@ -21,8 +21,6 @@ class HttpLogCard extends StatefulWidget {
     this.onTap,
     this.expanded = true,
     this.margin,
-    this.maxJsonLines = 15,
-    this.imagePreviewThreshold = 500 * 1024,
     this.theme = const TalkerScreenTheme(),
   });
 
@@ -31,8 +29,6 @@ class HttpLogCard extends StatefulWidget {
   final VoidCallback? onTap;
   final bool expanded;
   final EdgeInsets? margin;
-  final int maxJsonLines;
-  final int imagePreviewThreshold;
 
   /// Theme configuration for the screen.
   /// Defaults to [TalkerScreenTheme] with default values.
@@ -68,6 +64,16 @@ class _HttpLogCardState extends State<HttpLogCard> {
 
   bool get _isRequest => _advancedLog?.type == AdvancedDioLogType.request;
   bool get _isError => _advancedLog?.type == AdvancedDioLogType.error;
+
+  /// Effective display-limit registry.
+  ///
+  /// Sourced from the [AdvancedDioLoggerSettings] that was baked into the log
+  /// at intercept time — this is the single source of truth for the user's
+  /// per-content-type display limits.  Falls back to [DisplayLimitRegistry.defaults]
+  /// only for non-advanced (plain TalkerData) log entries.
+  DisplayLimitRegistry get _effectiveRegistry =>
+      _advancedLog?.settings.displayLimitRegistry ??
+      DisplayLimitRegistry.defaults;
 
   Color get _statusColor => StatusColorUtil.getLogTypeColor(
     isRequest: _isRequest,
@@ -230,9 +236,6 @@ class _HttpLogCardState extends State<HttpLogCard> {
         if (httpData.isImage && httpData.imageData != null)
           _buildImagePreview(httpData),
 
-        // Show truncation warning if data is truncated
-        if (httpData.isTruncated) _buildTruncationWarning(httpData),
-
         // Show error message if it's an error
         if (_isError && httpData.error != null)
           _buildErrorMessage(httpData.error!),
@@ -248,6 +251,8 @@ class _HttpLogCardState extends State<HttpLogCard> {
     final responseBody = httpData.responseBody;
     if (responseBody == null) return const SizedBox.shrink();
 
+    final displayLimit = _effectiveRegistry.get(httpData.contentType);
+
     String displayText;
     if (responseBody is Map || responseBody is List) {
       try {
@@ -260,13 +265,26 @@ class _HttpLogCardState extends State<HttpLogCard> {
       displayText = responseBody.toString();
     }
 
-    // Calculate lines and check if we need to truncate
+    // Check maxBytes first — if over limit, don't show preview at all
+    final byteLength = displayText.length;
+    if (byteLength > displayLimit.maxBytes) {
+      return _buildTooLargeForPreview(byteLength, displayLimit.maxBytes);
+    }
+
+    // Calculate lines and check if we need to truncate by maxLines
     final lines = displayText.split('\n');
-    final shouldTruncate = lines.length > widget.maxJsonLines;
-    final truncatedText =
-        shouldTruncate
-            ? lines.take(widget.maxJsonLines).join('\n')
-            : displayText;
+    final maxLines = displayLimit.maxLines;
+    final shouldTruncate = lines.length > maxLines;
+    final displayLines = shouldTruncate ? lines.take(maxLines).toList() : lines;
+    final truncatedText = displayLines.join('\n');
+
+    // Line number gutter width: enough digits for the last line number
+    final lastLineNo = displayLines.length;
+    final gutterWidth = lastLineNo.toString().length;
+
+    final codeColor = _getResponseTextColor(httpData.contentType);
+    const fontSize = 11.0;
+    const fontFamily = 'monospace';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -291,19 +309,49 @@ class _HttpLogCardState extends State<HttpLogCard> {
               const Spacer(),
               if (shouldTruncate)
                 Text(
-                  '${lines.length - widget.maxJsonLines} more lines...',
+                  '${lines.length - maxLines} more lines...',
                   style: TextStyle(color: Colors.grey[500], fontSize: 10),
                 ),
             ],
           ),
           const SizedBox(height: 4),
-          SelectableText(
-            truncatedText,
-            style: TextStyle(
-              color: _getResponseTextColor(httpData.contentType),
-              fontFamily: 'monospace',
-              fontSize: 11,
-            ),
+          // Line-numbered body
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Gutter: right-aligned line numbers
+              SelectableText(
+                List.generate(
+                  displayLines.length,
+                  (i) => (i + 1).toString().padLeft(gutterWidth),
+                ).join('\n'),
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontFamily: fontFamily,
+                  fontSize: fontSize,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Vertical separator
+              Container(
+                width: 1,
+                color: Colors.grey[700],
+                margin: const EdgeInsets.only(right: 8),
+              ),
+              // Code
+              Expanded(
+                child: SelectableText(
+                  truncatedText,
+                  style: TextStyle(
+                    color: codeColor,
+                    fontFamily: fontFamily,
+                    fontSize: fontSize,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
           ),
           if (shouldTruncate)
             Padding(
@@ -317,6 +365,33 @@ class _HttpLogCardState extends State<HttpLogCard> {
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTooLargeForPreview(int byteLength, int maxBytes) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline, size: 14, color: Colors.grey[400]),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Response too large to preview (${SizeCalculator.formatBytes(byteLength)} > ${SizeCalculator.formatBytes(maxBytes)}). Tap "Detail" to view.',
+              style: TextStyle(
+                color: Colors.grey[400],
+                fontSize: 11,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -337,7 +412,8 @@ class _HttpLogCardState extends State<HttpLogCard> {
 
   Widget _buildImagePreview(HttpLogData httpData) {
     final canShowInline =
-        httpData.imageData!.length <= widget.imagePreviewThreshold;
+        httpData.imageData!.length <=
+        _effectiveRegistry.get(httpData.contentType).maxBytes;
 
     if (canShowInline) {
       return Padding(
@@ -356,30 +432,6 @@ class _HttpLogCardState extends State<HttpLogCard> {
       child: ImagePlaceholder(
         size: httpData.imageData!.length,
         onTap: () => _openDetailScreen(),
-      ),
-    );
-  }
-
-  Widget _buildTruncationWarning(HttpLogData httpData) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.orange.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.warning_amber, color: Colors.orange, size: 16),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Data truncated. Tap to view full content.',
-              style: TextStyle(color: Colors.orange[300], fontSize: 11),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -520,7 +572,11 @@ bool isAdvancedHttpLog(TalkerData data) {
   return data is AdvancedDioLog;
 }
 
-/// Default builder for HTTP log cards that uses HttpLogCard for advanced logs
+/// Default builder for HTTP log cards that uses HttpLogCard for all logs.
+///
+/// Display limits are automatically sourced from the [AdvancedDioLoggerSettings]
+/// baked into each [AdvancedDioLog] at intercept time — no need to pass them
+/// separately here.
 Widget buildHttpLogCard(
   BuildContext context,
   TalkerData data, {
@@ -528,17 +584,6 @@ Widget buildHttpLogCard(
   TalkerScreenTheme theme = const TalkerScreenTheme(),
   VoidCallback? onCopyTap,
 }) {
-  if (isAdvancedHttpLog(data)) {
-    return HttpLogCard(
-      data: data,
-      expanded: expanded,
-      theme: theme,
-      onCopyTap: onCopyTap,
-    );
-  }
-
-  // Fallback to default card for non-advanced logs
-  // You can customize this or return null to use the default TalkerDataCard
   return HttpLogCard(
     data: data,
     expanded: expanded,

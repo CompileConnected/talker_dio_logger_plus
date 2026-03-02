@@ -1,11 +1,10 @@
 import 'dart:convert';
+
 import 'package:dio/dio.dart';
+import 'package:talker_dio_logger_plus/src/utils/header_masker.dart';
 
 /// Generates cURL commands from Dio requests
 class CurlGenerator {
-  /// Hidden value placeholder for sensitive data
-  static const String _hiddenValue = '[HIDDEN]';
-
   /// Generate cURL command from RequestOptions
   static String generate(
     RequestOptions options, {
@@ -50,11 +49,7 @@ class CurlGenerator {
 
   /// Generate cURL command with full options (not hidden)
   static String generateFull(RequestOptions options) {
-    return generate(
-      options,
-      hiddenHeaders: {},
-      hideAuthorizationValue: false,
-    );
+    return generate(options, hiddenHeaders: {}, hideAuthorizationValue: false);
   }
 
   /// Generate cURL command with hidden sensitive data
@@ -70,41 +65,20 @@ class CurlGenerator {
     );
   }
 
-  /// Process headers to hide sensitive values
+  /// Process headers to hide sensitive values.
+  ///
+  /// Delegates to [HeaderMasker.mask] with the raw params — no need to
+  /// construct a full [AdvancedDioLoggerSettings] object.
   static void _processHeaders(
     Map<String, dynamic> headers,
     Set<String> hiddenHeaders,
     bool hideAuthorizationValue,
   ) {
-    final lowerCaseMap = <String, String>{};
-    headers.forEach((key, value) {
-      lowerCaseMap[key.toLowerCase()] = key;
-    });
-
-    // Hide specified headers
-    for (final hiddenHeader in hiddenHeaders) {
-      final lowerCaseKey = hiddenHeader.toLowerCase();
-      if (lowerCaseMap.containsKey(lowerCaseKey)) {
-        final originalKey = lowerCaseMap[lowerCaseKey]!;
-        headers[originalKey] = _hiddenValue;
-      }
-    }
-
-    // Hide authorization header if specified
-    if (hideAuthorizationValue) {
-      const authHeaders = ['authorization', 'x-auth-token', 'bearer'];
-      for (final authHeader in authHeaders) {
-        if (lowerCaseMap.containsKey(authHeader)) {
-          final originalKey = lowerCaseMap[authHeader]!;
-          final value = headers[originalKey]?.toString() ?? '';
-          if (value.toLowerCase().startsWith('bearer ')) {
-            headers[originalKey] = 'Bearer $_hiddenValue';
-          } else {
-            headers[originalKey] = _hiddenValue;
-          }
-        }
-      }
-    }
+    HeaderMasker.mask(
+      headers,
+      hiddenHeaders: hiddenHeaders,
+      hideAuthorizationValue: hideAuthorizationValue,
+    );
   }
 
   /// Format request body for cURL
@@ -133,25 +107,12 @@ class CurlGenerator {
         final fileLength = file.value.length;
         final sizeInfo = '$fileLength bytes';
         parts.add(
-            '${file.key}=@${file.value.filename ?? "file"} (binary, $sizeInfo)');
+          '${file.key}=@${file.value.filename ?? "file"} (binary, $sizeInfo)',
+        );
       }
       return parts.join('&');
     }
 
     return data.toString();
   }
-
-  /// Validate if generated cURL is valid
-  static bool isValidCurl(String curl) {
-    return curl.startsWith('curl') &&
-        curl.contains("'http") &&
-        !curl.contains('null');
-  }
-
-  /// Extract URL from cURL command
-  static String? extractUrl(String curl) {
-    final urlMatch = RegExp(r"'(https?://[^']+)'").firstMatch(curl);
-    return urlMatch?.group(1);
-  }
 }
-

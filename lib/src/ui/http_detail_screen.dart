@@ -98,26 +98,6 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
             itemBuilder:
                 (context) => [
                   const PopupMenuItem(
-                    value: 'copy_curl',
-                    child: Row(
-                      children: [
-                        Icon(Icons.terminal, size: 20),
-                        SizedBox(width: 8),
-                        Text('Copy cURL'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'copy_curl_safe',
-                    child: Row(
-                      children: [
-                        Icon(Icons.security, size: 20),
-                        SizedBox(width: 8),
-                        Text('Copy cURL (hidden auth)'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
                     value: 'download',
                     child: Row(
                       children: [
@@ -165,12 +145,6 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
 
   void _handleMenuAction(String action) {
     switch (action) {
-      case 'copy_curl':
-        _copyCurl(safe: false);
-        break;
-      case 'copy_curl_safe':
-        _copyCurl(safe: true);
-        break;
       case 'download':
         _downloadAsZip();
         break;
@@ -178,22 +152,6 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
         _share();
         break;
     }
-  }
-
-  void _copyCurl({required bool safe}) {
-    final options = widget.httpLogData.requestOptions;
-    if (options == null) {
-      _showSnackBar('Request options not available');
-      return;
-    }
-
-    final curl =
-        safe
-            ? CurlGenerator.generateSafe(options)
-            : CurlGenerator.generateFull(options);
-
-    Clipboard.setData(ClipboardData(text: curl));
-    _showSnackBar('cURL command copied to clipboard');
   }
 
   Future<void> _downloadAsZip() async {
@@ -266,7 +224,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
     final theme = TalkerThemeProvider.of(context);
 
     final data = widget.httpLogData;
-    final hasBody = data.requestBody != null || data.fullRequestBody != null;
+    final hasBody = data.requestBody != null;
     final cardColor = theme.cardColor;
     final textColor = theme.textColor;
 
@@ -287,10 +245,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
           _buildSectionHeader('Body'),
           const SizedBox(height: 8),
           if (hasBody)
-            _buildBodyView(
-              data.fullRequestBody ?? data.requestBody,
-              isTruncated: data.isRequestTruncated,
-            )
+            _buildBodyView(data.requestBody, isTruncated: false)
           else
             Container(
               width: double.infinity,
@@ -347,7 +302,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
               },
             ),
             Text(
-              _showFullCurl ? 'Show Full' : 'Hide Auth',
+              _showFullCurl ? 'Hide Auth' : 'Show Full',
               style: TextStyle(fontSize: 12, color: textColor),
             ),
           ],
@@ -688,7 +643,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
         height: 400,
         child: SearchableJsonViewer(
           data: body,
-          initiallyExpanded: !isTruncated,
+          initiallyExpanded: false,
           jsonSoftWrapTextValueAtWidth: jsonSoftWrapTextValueAtWidth,
         ),
       );
@@ -750,10 +705,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
 
     // Handle HTML response
     if (data.isHtml) {
-      final htmlContent =
-          data.fullResponseBody?.toString() ??
-          data.responseBody?.toString() ??
-          '';
+      final htmlContent = data.htmlContent ?? '';
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -786,7 +738,7 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
     }
 
     // Handle JSON response
-    final responseBody = data.fullResponseBody ?? data.responseBody;
+    final responseBody = data.responseBody;
     if (responseBody == null) {
       return Container(
         padding: const EdgeInsets.all(12),
@@ -805,36 +757,11 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (data.isResponseTruncated)
-            Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning, color: Colors.orange, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Response truncated. Size: ${SizeCalculator.formatBytes(SizeCalculator.calculateSize(data.fullResponseBody))}',
-                      style: const TextStyle(
-                        color: Colors.orange,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           SizedBox(
             height: 400,
             child: SearchableJsonViewer(
               data: responseBody,
-              initiallyExpanded: !data.isResponseTruncated,
+              initiallyExpanded: false,
               jsonSoftWrapTextValueAtWidth: jsonSoftWrapTextValueAtWidth,
             ),
           ),

@@ -1,8 +1,9 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:talker_dio_logger_plus/src/ui/talker_theme_provider.dart';
 
-/// Widget to preview HTML content
+/// Widget to preview HTML content using an actual WebView
 class WebViewPreview extends StatelessWidget {
   const WebViewPreview({
     super.key,
@@ -17,29 +18,25 @@ class WebViewPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // For simple preview, we'll show a styled preview box
-    // A full web view would require platform-specific implementation
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: SizedBox(
         height: maxHeight,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey[300]!),
-        ),
         child: Stack(
           children: [
-            Positioned.fill(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(12),
-                  child: _buildHtmlPreview(),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: InAppWebView(
+                initialData: InAppWebViewInitialData(data: htmlContent),
+                initialSettings: InAppWebViewSettings(
+                  javaScriptEnabled: false,
+                  disableContextMenu: true,
+                  transparentBackground: true,
+                  supportZoom: false,
                 ),
               ),
             ),
-            // Overlay with tap indicator
+            // Tap-absorbing overlay that lets GestureDetector capture the tap
             Positioned.fill(
               child: Container(
                 decoration: BoxDecoration(
@@ -103,29 +100,10 @@ class WebViewPreview extends StatelessWidget {
       ),
     );
   }
-
-  Widget _buildHtmlPreview() {
-    // Simple text extraction from HTML for preview
-    final textContent = _extractTextFromHtml(htmlContent);
-    return Text(
-      textContent,
-      style: TextStyle(color: Colors.grey[800], fontSize: 12),
-    );
-  }
-
-  String _extractTextFromHtml(String html) {
-    // Simple HTML tag removal for preview
-    return html
-        .replaceAll(RegExp(r'<style[^>]*>[\s\S]*?</style>'), '')
-        .replaceAll(RegExp(r'<script[^>]*>[\s\S]*?</script>'), '')
-        .replaceAll(RegExp(r'<[^>]+>'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-  }
 }
 
-/// Full screen HTML preview
-class FullScreenHtmlPreview extends StatelessWidget {
+/// Full screen HTML preview using InAppWebView
+class FullScreenHtmlPreview extends StatefulWidget {
   const FullScreenHtmlPreview({
     super.key,
     required this.htmlContent,
@@ -134,6 +112,14 @@ class FullScreenHtmlPreview extends StatelessWidget {
 
   final String htmlContent;
   final String? title;
+
+  @override
+  State<FullScreenHtmlPreview> createState() => _FullScreenHtmlPreviewState();
+}
+
+class _FullScreenHtmlPreviewState extends State<FullScreenHtmlPreview> {
+  InAppWebViewController? _webViewController;
+  bool _isLoading = true;
 
   @override
   Widget build(BuildContext context) {
@@ -146,8 +132,13 @@ class FullScreenHtmlPreview extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: bgColor,
         foregroundColor: textColor,
-        title: Text(title ?? 'HTML Preview'),
+        title: Text(widget.title ?? 'HTML Preview'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => _webViewController?.reload(),
+            tooltip: 'Reload',
+          ),
           IconButton(
             icon: const Icon(Icons.code),
             onPressed: () => _showSourceCode(context),
@@ -155,47 +146,27 @@ class FullScreenHtmlPreview extends StatelessWidget {
           ),
         ],
       ),
-      body: _buildBody(context),
-    );
-  }
-
-  Widget _buildBody(BuildContext context) {
-    // For now, show the raw HTML with syntax highlighting
-    // A full implementation would use webview_flutter for mobile
-    // and iframe for web
-    if (kIsWeb) {
-      return _buildWebPreview(context);
-    } else {
-      return _buildMobilePreview(context);
-    }
-  }
-
-  Widget _buildWebPreview(BuildContext context) {
-    // On web, we can potentially use an iframe
-    // For simplicity, show raw HTML
-    return _buildHtmlSource(context);
-  }
-
-  Widget _buildMobilePreview(BuildContext context) {
-    // On mobile, ideally use webview_flutter
-    // For simplicity, show raw HTML with basic rendering
-    return _buildHtmlSource(context);
-  }
-
-  Widget _buildHtmlSource(BuildContext context) {
-    final theme = TalkerThemeProvider.of(context);
-    return Container(
-      color: theme.backgroundColor,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: SelectableText(
-          htmlContent,
-          style: TextStyle(
-            color: theme.textColor,
-            fontFamily: 'monospace',
-            fontSize: 12,
+      body: Stack(
+        children: [
+          InAppWebView(
+            initialData: InAppWebViewInitialData(data: widget.htmlContent),
+            initialSettings: InAppWebViewSettings(
+              javaScriptEnabled: true,
+              supportZoom: true,
+              transparentBackground: true,
+            ),
+            onWebViewCreated: (controller) {
+              _webViewController = controller;
+            },
+            onLoadStart: (controller, url) {
+              setState(() => _isLoading = true);
+            },
+            onLoadStop: (controller, url) {
+              setState(() => _isLoading = false);
+            },
           ),
-        ),
+          if (_isLoading) const Center(child: CircularProgressIndicator()),
+        ],
       ),
     );
   }
@@ -238,6 +209,22 @@ class FullScreenHtmlPreview extends StatelessWidget {
                         ),
                         const Spacer(),
                         IconButton(
+                          icon: Icon(Icons.copy, color: textColor),
+                          onPressed: () {
+                            Clipboard.setData(
+                              ClipboardData(text: widget.htmlContent),
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'HTML source copied to clipboard',
+                                ),
+                              ),
+                            );
+                          },
+                          tooltip: 'Copy source',
+                        ),
+                        IconButton(
                           icon: Icon(Icons.close, color: textColor),
                           onPressed: () => Navigator.of(context).pop(),
                         ),
@@ -249,7 +236,7 @@ class FullScreenHtmlPreview extends StatelessWidget {
                       controller: scrollController,
                       padding: const EdgeInsets.all(16),
                       child: SelectableText(
-                        htmlContent,
+                        widget.htmlContent,
                         style: const TextStyle(
                           color: Colors.green,
                           fontFamily: 'monospace',

@@ -88,10 +88,18 @@ extension TalkerCompat on Talker {
   }
 }
 
-/// Default AnsiPen configurations for HTTP logs
+/// Default AnsiPen configurations for HTTP logs.
 ///
-/// Provides consistent styling across the application and
-/// makes it easy to customize colors in one place.
+/// Provides consistent ANSI terminal styling across the application and
+/// makes it easy to customise colours in one place.
+///
+/// The three primary pens ([request], [response], [error]) are used as
+/// fallbacks when [AdvancedDioLoggerSettings.requestPen] / [responsePen] /
+/// [errorPen] are null.
+///
+/// The status-code pens ([success], [redirect], [clientError], [serverError])
+/// and [forStatusCode] are **public API** — consumers can use them when
+/// building custom Talker UI widgets that need ANSI-coloured output.
 abstract class TalkerHttpPens {
   /// Default pen for HTTP request logs (pink/magenta)
   static AnsiPen get request => AnsiPen()..xterm(219);
@@ -108,13 +116,18 @@ abstract class TalkerHttpPens {
   /// Pen for redirect status codes (3xx)
   static AnsiPen get redirect => AnsiPen()..yellow();
 
-  /// Pen for client error status codes (4xx)
-  static AnsiPen get clientError => AnsiPen()..xterm(208); // Orange
+  /// Pen for client error status codes (4xx) — orange
+  static AnsiPen get clientError => AnsiPen()..xterm(208);
 
   /// Pen for server error status codes (5xx)
   static AnsiPen get serverError => AnsiPen()..red();
 
-  /// Get appropriate pen based on HTTP status code
+  /// Returns an [AnsiPen] appropriate for the given HTTP [statusCode].
+  ///
+  /// - 2xx → [success]
+  /// - 3xx → [redirect]
+  /// - 4xx → [clientError]
+  /// - 5xx / null → [serverError] / [error]
   static AnsiPen forStatusCode(int? statusCode) {
     if (statusCode == null) return error;
     if (statusCode >= 200 && statusCode < 300) return success;

@@ -88,37 +88,6 @@ class AdvancedDioLoggerSettings {
   }) : displayLimitRegistry =
            displayLimitRegistry ?? DisplayLimitRegistry.defaults;
 
-  /// Create production-safe settings with minimal logging
-  ///
-  /// Why: In production, you typically want less verbose logging
-  /// with maximum security to prevent credential exposure.
-  factory AdvancedDioLoggerSettings.production() {
-    return AdvancedDioLoggerSettings(
-      printRequestData: false,
-      printRequestHeaders: false,
-      printResponseData: false,
-      printResponseHeaders: false,
-      hideAuthorizationValue: true,
-      logLevel: LogLevel.info,
-    );
-  }
-
-  /// Create debug settings with maximum verbosity
-  ///
-  /// Why: During development, you want all available information
-  /// to debug issues effectively.
-  factory AdvancedDioLoggerSettings.debug() {
-    return AdvancedDioLoggerSettings(
-      printRequestData: true,
-      printRequestHeaders: true,
-      printRequestExtra: true,
-      printResponseData: true,
-      printResponseHeaders: true,
-      printResponseTime: true,
-      logLevel: LogLevel.debug,
-    );
-  }
-
   /// Enable/disable the logger
   ///
   /// Set to `false` to completely disable logging without removing
@@ -186,14 +155,14 @@ class AdvancedDioLoggerSettings {
   /// Maps response types (JSON, image, text, HTML, XML, file, unknown) to their
   /// display limits. Provides sensible defaults and allows per-type overrides.
   ///
-  /// See [DisplayLimitRegistry] and [ResponseDisplayLimit] for available options.
+  /// See [DisplayLimitRegistry] and [DisplayLimit] for available options.
   final DisplayLimitRegistry displayLimitRegistry;
 
   /// Get display limit for a specific content type.
   ///
   /// Uses the registry to respect per-content-type configuration.
   /// Falls back to unknown type limits if type is not explicitly configured.
-  ResponseDisplayLimit getDisplayLimit(HttpContentType contentType) =>
+  DisplayLimit getDisplayLimit(HttpContentType contentType) =>
       displayLimitRegistry.get(contentType);
 
   /// Width at which to soft wrap string values in JSON viewer (in logical pixels)

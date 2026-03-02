@@ -72,8 +72,8 @@ class DefaultFileSaver implements FileSaverInterface {
       );
 
       // Add request body if exists
-      if (logData.fullRequestBody != null || logData.requestBody != null) {
-        final requestBody = logData.fullRequestBody ?? logData.requestBody;
+      if (logData.requestBody != null) {
+        final requestBody = logData.requestBody;
         final requestBodyStr = _convertToString(requestBody);
         archive.addFile(
           ArchiveFile(
@@ -95,8 +95,8 @@ class DefaultFileSaver implements FileSaverInterface {
       );
 
       // Add response body
-      if (logData.fullResponseBody != null || logData.responseBody != null) {
-        final responseBody = logData.fullResponseBody ?? logData.responseBody;
+      if (logData.responseBody != null) {
+        final responseBody = logData.responseBody;
 
         if (logData.isImage && logData.imageData != null) {
           final ext = ContentTypeDetector.getImageExtension(

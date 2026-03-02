@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:talker_dio_logger_plus/src/models/http_log_data.dart';
+
+import 'http_log_data.dart';
 
 /// Utility class to detect content type from HTTP responses
 class ContentTypeDetector {
@@ -16,22 +17,13 @@ class ContentTypeDetector {
   ];
 
   /// Common text-based MIME types
-  static const _textMimeTypes = [
-    'text/plain',
-    'text/csv',
-  ];
+  static const _textMimeTypes = ['text/plain', 'text/csv'];
 
   /// Common HTML MIME types
-  static const _htmlMimeTypes = [
-    'text/html',
-    'application/xhtml+xml',
-  ];
+  static const _htmlMimeTypes = ['text/html', 'application/xhtml+xml'];
 
   /// Common XML MIME types
-  static const _xmlMimeTypes = [
-    'text/xml',
-    'application/xml',
-  ];
+  static const _xmlMimeTypes = ['text/xml', 'application/xml'];
 
   /// Common JSON MIME types
   static const _jsonMimeTypes = [
@@ -49,7 +41,9 @@ class ContentTypeDetector {
 
   /// Detect content type from headers and data
   static HttpContentType detectFromContentType(
-      String? contentTypeHeader, dynamic data) {
+    String? contentTypeHeader,
+    dynamic data,
+  ) {
     if (contentTypeHeader != null) {
       final mimeType = contentTypeHeader.split(';').first.trim().toLowerCase();
 
@@ -181,4 +175,3 @@ class ContentTypeDetector {
     return '.bin';
   }
 }
-
