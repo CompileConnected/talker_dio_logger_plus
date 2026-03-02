@@ -1,17 +1,12 @@
 import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
+import 'package:talker_dio_logger_plus/src/advanced_dio_logger_settings.dart';
+import 'package:talker_dio_logger_plus/src/utils/data_truncator.dart';
+import 'package:talker_dio_logger_plus/src/utils/size_calculator.dart';
 
 /// Content type enumeration for HTTP responses
-enum HttpContentType {
-  json,
-  html,
-  xml,
-  text,
-  image,
-  binary,
-  file,
-  unknown,
-}
+enum HttpContentType { json, html, xml, text, image, binary, file, unknown }
 
 /// Model class to hold detailed HTTP log data
 class HttpLogData {
@@ -76,11 +71,11 @@ class HttpLogData {
 
   /// Returns true if response is text based
   bool get isTextBased => [
-        HttpContentType.json,
-        HttpContentType.html,
-        HttpContentType.xml,
-        HttpContentType.text,
-      ].contains(contentType);
+    HttpContentType.json,
+    HttpContentType.html,
+    HttpContentType.xml,
+    HttpContentType.text,
+  ].contains(contentType);
 
   /// Returns true if the data is too large and truncated
   bool get isTruncated => isRequestTruncated || isResponseTruncated;
@@ -153,5 +148,48 @@ class HttpLogData {
       dioException: dioException ?? this.dioException,
     );
   }
-}
 
+  /// Creates a copy of this [HttpLogData] with data truncated according to the
+  /// provided [settings].
+  ///
+  /// This is useful for display purposes where large payloads should be
+  /// shortened while preserving the original data for detailed views.
+  HttpLogData toTruncated(AdvancedDioLoggerSettings settings) {
+    // Truncate request body if needed
+    dynamic truncatedRequestBody = requestBody;
+    var newIsRequestTruncated = isRequestTruncated;
+    if (requestBody != null) {
+      final requestLimit = settings.getDisplayLimit(HttpContentType.unknown);
+      final truncationResult = DataTruncator.truncate(
+        requestBody,
+        threshold: requestLimit.maxBytes,
+      );
+      if (truncationResult != null) {
+        truncatedRequestBody = truncationResult.data;
+        newIsRequestTruncated = true;
+      }
+    }
+
+    // Truncate response body if needed
+    dynamic truncatedResponseBody = responseBody;
+    var newIsResponseTruncated = isResponseTruncated;
+    if (responseBody != null && contentType != HttpContentType.image) {
+      final responseLimit = settings.getDisplayLimit(contentType);
+      final truncationResult = DataTruncator.truncate(
+        responseBody,
+        threshold: responseLimit.maxBytes,
+      );
+      if (truncationResult != null) {
+        truncatedResponseBody = truncationResult.data;
+        newIsResponseTruncated = true;
+      }
+    }
+
+    return copyWith(
+      requestBody: truncatedRequestBody,
+      isRequestTruncated: newIsRequestTruncated,
+      responseBody: truncatedResponseBody,
+      isResponseTruncated: newIsResponseTruncated,
+    );
+  }
+}

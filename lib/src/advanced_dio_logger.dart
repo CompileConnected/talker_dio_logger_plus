@@ -62,9 +62,9 @@ class AdvancedDioLogger extends Interceptor {
     try {
       final message = '${options.uri}';
       final httpLogData = createRequestLogData(options, settings);
-      final httpLog = AdvancedDioRequestLog(
+      final httpLog = AdvancedDioLog(
         message,
-        requestOptions: options,
+        type: AdvancedDioLogType.request,
         settings: settings,
         httpLogData: httpLogData,
       );
@@ -94,9 +94,9 @@ class AdvancedDioLogger extends Interceptor {
     try {
       final message = '${response.requestOptions.uri}';
       final httpLogData = createResponseLogData(response, settings);
-      final httpLog = AdvancedDioResponseLog(
+      final httpLog = AdvancedDioLog(
         message,
-        response: response,
+        type: AdvancedDioLogType.response,
         settings: settings,
         httpLogData: httpLogData,
       );
@@ -125,9 +125,9 @@ class AdvancedDioLogger extends Interceptor {
     try {
       final message = '${err.requestOptions.uri}';
       final httpLogData = createErrorLogData(err, settings);
-      final httpErrorLog = AdvancedDioErrorLog(
+      final httpErrorLog = AdvancedDioLog(
         message,
-        dioException: err,
+        type: AdvancedDioLogType.error,
         settings: settings,
         httpLogData: httpLogData,
       );

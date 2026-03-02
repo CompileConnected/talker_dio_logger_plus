@@ -57,21 +57,17 @@ class _HttpLogCardState extends State<HttpLogCard> {
     _expanded = widget.expanded;
   }
 
-  HttpLogData? get _httpLogData {
-    if (widget.data is AdvancedDioRequestLog) {
-      return (widget.data as AdvancedDioRequestLog).httpLogData;
-    }
-    if (widget.data is AdvancedDioResponseLog) {
-      return (widget.data as AdvancedDioResponseLog).httpLogData;
-    }
-    if (widget.data is AdvancedDioErrorLog) {
-      return (widget.data as AdvancedDioErrorLog).httpLogData;
+  AdvancedDioLog? get _advancedLog {
+    if (widget.data is AdvancedDioLog) {
+      return widget.data as AdvancedDioLog;
     }
     return null;
   }
 
-  bool get _isRequest => widget.data is AdvancedDioRequestLog;
-  bool get _isError => widget.data is AdvancedDioErrorLog;
+  HttpLogData? get _httpLogData => _advancedLog?.httpLogData;
+
+  bool get _isRequest => _advancedLog?.type == AdvancedDioLogType.request;
+  bool get _isError => _advancedLog?.type == AdvancedDioLogType.error;
 
   Color get _statusColor => StatusColorUtil.getLogTypeColor(
     isRequest: _isRequest,
@@ -472,10 +468,8 @@ class _HttpLogCardState extends State<HttpLogCard> {
   void _copyCurl() {
     String? curl;
 
-    if (widget.data is AdvancedDioRequestLog) {
-      curl = (widget.data as AdvancedDioRequestLog).curlCommandSafe;
-    } else if (widget.data is AdvancedDioErrorLog) {
-      curl = (widget.data as AdvancedDioErrorLog).curlCommandSafe;
+    if (_advancedLog != null) {
+      curl = _advancedLog!.curlCommandSafe;
     } else if (_httpLogData?.requestOptions != null) {
       curl = CurlGenerator.generateSafe(_httpLogData!.requestOptions!);
     }
@@ -497,18 +491,7 @@ class _HttpLogCardState extends State<HttpLogCard> {
               theme: widget.theme,
               child: HttpDetailScreen(
                 httpLogData: httpData,
-                requestLog:
-                    widget.data is AdvancedDioRequestLog
-                        ? widget.data as AdvancedDioRequestLog
-                        : null,
-                responseLog:
-                    widget.data is AdvancedDioResponseLog
-                        ? widget.data as AdvancedDioResponseLog
-                        : null,
-                errorLog:
-                    widget.data is AdvancedDioErrorLog
-                        ? widget.data as AdvancedDioErrorLog
-                        : null,
+                advancedLog: _advancedLog,
               ),
             ),
       ),
@@ -534,9 +517,7 @@ typedef HttpLogCardBuilder =
 
 /// Returns true if the TalkerData is from the advanced dio logger
 bool isAdvancedHttpLog(TalkerData data) {
-  return data is AdvancedDioRequestLog ||
-      data is AdvancedDioResponseLog ||
-      data is AdvancedDioErrorLog;
+  return data is AdvancedDioLog;
 }
 
 /// Default builder for HTTP log cards that uses HttpLogCard for advanced logs

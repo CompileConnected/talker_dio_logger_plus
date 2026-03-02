@@ -13,164 +13,105 @@ import 'package:talker_dio_logger_plus/src/utils/talker_compat.dart';
 
 const _encoder = JsonEncoder.withIndent('  ');
 
-/// Advanced HTTP Request Log with detailed data
-class AdvancedDioRequestLog extends TalkerLog {
-  AdvancedDioRequestLog(
-    String super.message, {
-    required this.requestOptions,
+/// Type of HTTP log
+enum AdvancedDioLogType { request, response, error }
+
+/// Advanced HTTP Log that handles requests, responses, and errors in a single class.
+class AdvancedDioLog extends TalkerLog {
+  AdvancedDioLog(
+    super.message, {
+    required this.type,
     required this.settings,
     required this.httpLogData,
   });
 
-  final RequestOptions requestOptions;
+  final AdvancedDioLogType type;
   final AdvancedDioLoggerSettings settings;
   final HttpLogData httpLogData;
 
   @override
-  AnsiPen get pen => settings.requestPen ?? (AnsiPen()..xterm(219));
+  AnsiPen get pen => switch (type) {
+    AdvancedDioLogType.request => settings.requestPen ?? TalkerHttpPens.request,
+    AdvancedDioLogType.response =>
+      settings.responsePen ?? TalkerHttpPens.response,
+    AdvancedDioLogType.error => settings.errorPen ?? TalkerHttpPens.error,
+  };
 
   @override
-  String get key => TalkerHttpKeys.httpRequest;
+  String get key => switch (type) {
+    AdvancedDioLogType.request => TalkerHttpKeys.httpRequest,
+    AdvancedDioLogType.response => TalkerHttpKeys.httpResponse,
+    AdvancedDioLogType.error => TalkerHttpKeys.httpError,
+  };
 
   @override
-  LogLevel get logLevel => settings.logLevel;
+  LogLevel get logLevel =>
+      type == AdvancedDioLogType.error ? LogLevel.error : settings.logLevel;
 
   /// Get cURL command with hidden sensitive values
-  String get curlCommandSafe => CurlGenerator.generateSafe(
-    requestOptions,
-    hiddenHeaders: settings.hiddenHeaders,
-    hideAuthorizationValue: settings.hideAuthorizationValue,
-  );
+  String? get curlCommandSafe {
+    final options = httpLogData.requestOptions;
+    if (options == null) return null;
+    return CurlGenerator.generateSafe(
+      options,
+      hiddenHeaders: settings.hiddenHeaders,
+      hideAuthorizationValue: settings.hideAuthorizationValue,
+    );
+  }
 
   /// Get full cURL command (with all values visible)
-  String get curlCommandFull => CurlGenerator.generateFull(requestOptions);
+  String? get curlCommandFull {
+    final options = httpLogData.requestOptions;
+    if (options == null) return null;
+    return CurlGenerator.generateFull(options);
+  }
 
   @override
   String generateTextMessage({
     TimeFormat timeFormat = TimeFormat.timeAndSeconds,
   }) {
-    final buffer = StringBuffer();
-    buffer.write('[$title] [${requestOptions.method}] $message');
+    final buffer = StringBuffer('[$title] [${httpLogData.method}] $message');
 
-    final data = requestOptions.data;
-    final headers = Map.from(requestOptions.headers);
-    final limit = settings.getDisplayLimit(HttpContentType.unknown);
-    final shouldPrintRequestData =
-        settings.printRequestData && data != null && limit.enablePreview;
-    final shouldPrintHeaders =
-        settings.printRequestHeaders && headers.isNotEmpty;
-    final shouldPrintExtra =
-        settings.printRequestExtra && requestOptions.extra.isNotEmpty;
-
-    try {
-      if (shouldPrintRequestData) {
-        final shouldTruncate = SizeCalculator.shouldTruncate(
-          data,
-          threshold: limit.maxBytes,
-        );
-        if (shouldTruncate) {
-          final truncationResult = DataTruncator.truncate(
-            data,
-            threshold: limit.maxBytes,
-          );
-          if (data is FormData) {
-            buffer.write('\nData: ${_formatFormData(data)}');
-          } else {
-            buffer.write('\nData: ${_encoder.convert(truncationResult.data)}');
-          }
-          buffer.write(
-            '\n[Truncated: ${SizeCalculator.formatBytes(truncationResult.originalSize)} - tap for full content]',
-          );
-        } else {
-          if (data is FormData) {
-            buffer.write('\nData: ${_formatFormData(data)}');
-          } else {
-            final prettyData = _encoder.convert(data);
-            buffer.write('\nData: $prettyData');
-          }
-        }
-      }
-
-      if (shouldPrintHeaders) {
-        HeaderMasker.mask(headers, settings);
-        final prettyHeaders = _encoder.convert(headers);
-        buffer.write('\nHeaders: $prettyHeaders');
-      }
-
-      final extra = Map.from(requestOptions.extra);
-      // Remove internal timestamp key
-      extra.remove('_talker_dio_logger_ts_');
-      if (shouldPrintExtra) {
-        final prettyExtra = _encoder.convert(extra);
-        buffer.write('\nExtra: $prettyExtra');
-      }
-    } catch (_) {
-      // Handle conversion errors
+    switch (type) {
+      case AdvancedDioLogType.request:
+        _appendRequestDetails(buffer);
+        break;
+      case AdvancedDioLogType.response:
+        _appendResponseDetails(buffer);
+        break;
+      case AdvancedDioLogType.error:
+        _appendErrorDetails(buffer);
+        break;
     }
+
+    _appendRequestHeaders(buffer);
+    _appendRequestExtra(buffer);
+
     return buffer.toString();
   }
 
-  String _formatFormData(FormData data) {
-    final formDataMap = <String, dynamic>{};
-    for (var field in data.fields) {
-      formDataMap[field.key] = field.value;
+  void _appendRequestDetails(StringBuffer buffer) {
+    if (settings.printRequestData) {
+      _appendData(
+        buffer,
+        label: 'Data',
+        data: httpLogData.fullRequestBody,
+        contentType: HttpContentType.unknown,
+      );
     }
-    for (var file in data.files) {
-      formDataMap[file.key] = {
-        'filename': file.value.filename,
-        'contentType': file.value.contentType.toString(),
-        'bytes': file.value.length,
-      };
-    }
-    return _encoder.convert(formDataMap);
   }
-}
 
-/// Advanced HTTP Response Log with detailed data
-class AdvancedDioResponseLog extends TalkerLog {
-  AdvancedDioResponseLog(
-    String super.message, {
-    required this.response,
-    required this.settings,
-    required this.httpLogData,
-  }) : responseTime = _getResponseTime(response.requestOptions);
+  void _appendResponseDetails(StringBuffer buffer) {
+    buffer.write('\nStatus: ${httpLogData.statusCode}');
 
-  final Response<dynamic> response;
-  final AdvancedDioLoggerSettings settings;
-  final HttpLogData httpLogData;
-  final int? responseTime;
-
-  @override
-  AnsiPen get pen => settings.responsePen ?? (AnsiPen()..xterm(46));
-
-  @override
-  String get key => TalkerHttpKeys.httpResponse;
-
-  @override
-  LogLevel get logLevel => settings.logLevel;
-
-  @override
-  String generateTextMessage({
-    TimeFormat timeFormat = TimeFormat.timeAndSeconds,
-  }) {
-    final buffer = StringBuffer();
-    buffer.write('[$title] [${response.requestOptions.method}] $message');
-
-    final responseMessage = response.statusMessage;
-    final data = response.data;
-    final headers = response.headers.map;
-
-    buffer.write('\nStatus: ${response.statusCode}');
-
-    if (settings.printResponseTime && responseTime != null) {
-      buffer.write('\nTime: $responseTime ms');
+    if (settings.printResponseTime && httpLogData.responseTime != null) {
+      buffer.write('\nTime: ${httpLogData.responseTime} ms');
     }
 
-    if (settings.printResponseMessage && responseMessage != null) {
-      buffer.write('\nMessage: $responseMessage');
+    if (settings.printResponseMessage && httpLogData.statusMessage != null) {
+      buffer.write('\nMessage: ${httpLogData.statusMessage}');
     }
 
-    // Add content type info
     buffer.write('\nContent-Type: ${httpLogData.contentType.name}');
     if (httpLogData.contentLength != null) {
       buffer.write(
@@ -178,174 +119,168 @@ class AdvancedDioResponseLog extends TalkerLog {
       );
     }
 
-    try {
-      if (settings.printResponseData && data != null) {
-        // Handle different content types
-        final limit = settings.getDisplayLimit(httpLogData.contentType);
-        if (httpLogData.isImage) {
-          buffer.write(
-            '\n[Image Data - ${SizeCalculator.formatBytes(httpLogData.approximateResponseSize)}]',
-          );
-          if (httpLogData.approximateResponseSize > limit.maxBytes) {
-            buffer.write('\n[Too large for preview - tap to view]');
-          }
-        } else if (httpLogData.isHtml) {
-          buffer.write('\n[HTML Content - tap to preview]');
-        } else if (httpLogData.isTruncated) {
-          final truncationResult = DataTruncator.truncate(
-            data,
-            threshold: limit.maxBytes,
-          );
-          final prettyData =
-              settings.responseDataConverter?.call(response) ??
-              _encoder.convert(truncationResult.data);
-          buffer.write('\nData: $prettyData');
-          buffer.write(
-            '\n[Truncated: ${SizeCalculator.formatBytes(truncationResult.originalSize)} - tap for full content]',
-          );
-        } else {
-          final prettyData =
-              settings.responseDataConverter?.call(response) ??
-              _encoder.convert(data);
-          buffer.write('\nData: $prettyData');
-        }
-      }
-
-      if (settings.printResponseHeaders && headers.isNotEmpty) {
-        final prettyHeaders = _encoder.convert(headers);
-        buffer.write('\nHeaders: $prettyHeaders');
-      }
-    } catch (_) {
-      // Handle conversion errors
+    if (settings.printResponseData) {
+      _appendData(
+        buffer,
+        label: 'Data',
+        data: httpLogData.fullResponseBody,
+        contentType: httpLogData.contentType,
+        response: httpLogData.response,
+      );
     }
-    return buffer.toString();
+
+    if (settings.printResponseHeaders) {
+      _appendMap(buffer, 'Headers', httpLogData.responseHeaders);
+    }
   }
-}
 
-/// Advanced HTTP Error Log with detailed data
-class AdvancedDioErrorLog extends TalkerLog {
-  AdvancedDioErrorLog(
-    String super.title, {
-    required this.dioException,
-    required this.settings,
-    required this.httpLogData,
-  }) : responseTime = _getResponseTime(dioException.requestOptions);
+  void _appendErrorDetails(StringBuffer buffer) {
+    if (httpLogData.statusCode != null) {
+      buffer.write('\nStatus: ${httpLogData.statusCode}');
+    }
 
-  final DioException dioException;
-  final AdvancedDioLoggerSettings settings;
-  final HttpLogData httpLogData;
-  final int? responseTime;
+    if (settings.printResponseTime && httpLogData.responseTime != null) {
+      buffer.write('\nTime: ${httpLogData.responseTime} ms');
+    }
 
-  @override
-  AnsiPen get pen => settings.errorPen ?? (AnsiPen()..red());
+    if (settings.printErrorMessage && httpLogData.error != null) {
+      buffer.write('\nMessage: ${httpLogData.error}');
+    }
 
-  @override
-  String get key => TalkerHttpKeys.httpError;
+    if (httpLogData.dioException != null) {
+      buffer.write('\nError Type: ${httpLogData.dioException!.type.name}');
+    }
 
-  @override
-  LogLevel get logLevel => LogLevel.error;
+    if (settings.printErrorData) {
+      _appendData(
+        buffer,
+        label: 'Data',
+        data: httpLogData.fullResponseBody,
+        contentType: httpLogData.contentType,
+      );
+    }
 
-  /// Get cURL command with hidden sensitive values
-  String get curlCommandSafe => CurlGenerator.generateSafe(
-    dioException.requestOptions,
-    hiddenHeaders: settings.hiddenHeaders,
-    hideAuthorizationValue: settings.hideAuthorizationValue,
-  );
+    if (settings.printErrorHeaders) {
+      _appendMap(buffer, 'Headers', httpLogData.responseHeaders);
+    }
+  }
 
-  /// Get full cURL command (with all values visible)
-  String get curlCommandFull =>
-      CurlGenerator.generateFull(dioException.requestOptions);
-
-  @override
-  String generateTextMessage({
-    TimeFormat timeFormat = TimeFormat.timeAndSeconds,
+  void _appendData(
+    StringBuffer buffer, {
+    required String label,
+    required dynamic data,
+    required HttpContentType contentType,
+    Response? response,
   }) {
-    final buffer = StringBuffer();
-    buffer.write('[$title] [${dioException.requestOptions.method}] $message');
+    if (data == null) return;
 
-    final responseMessage = dioException.message;
-    final statusCode = dioException.response?.statusCode;
-    final data = dioException.response?.data;
-    final headers = dioException.response?.headers;
+    final limit = settings.getDisplayLimit(contentType);
+    if (!limit.enablePreview) return;
 
-    if (statusCode != null) {
-      buffer.write('\nStatus: $statusCode');
+    if (contentType == HttpContentType.image) {
+      buffer.write(
+        '\n[$label: Image Data - ${SizeCalculator.formatBytes(httpLogData.approximateResponseSize)}]',
+      );
+      if (httpLogData.approximateResponseSize > limit.maxBytes) {
+        buffer.write('\n[Too large for preview - tap to view]');
+      }
+      return;
     }
 
-    if (settings.printResponseTime && responseTime != null) {
-      buffer.write('\nTime: $responseTime ms');
+    if (contentType == HttpContentType.html) {
+      buffer.write('\n[$label: HTML Content - tap to preview]');
+      return;
     }
 
-    if (settings.printErrorMessage && responseMessage != null) {
-      buffer.write('\nMessage: $responseMessage');
-    }
+    final truncationResult = DataTruncator.truncate(
+      data,
+      threshold: limit.maxBytes,
+    );
+    final displayData = truncationResult?.data ?? data;
 
-    // Error type info
-    buffer.write('\nError Type: ${dioException.type.name}');
-
-    if (settings.printErrorData && data != null) {
-      final limit = settings.getDisplayLimit(httpLogData.contentType);
-      if (SizeCalculator.shouldTruncate(data, threshold: limit.maxBytes)) {
-        final truncationResult = DataTruncator.truncate(
-          data,
-          threshold: limit.maxBytes,
-        );
-        final prettyData = _encoder.convert(truncationResult.data);
-        buffer.write('\nData: $prettyData');
-        buffer.write(
-          '\n[Truncated: ${SizeCalculator.formatBytes(truncationResult.originalSize)}]',
-        );
-      } else {
-        final prettyData = _encoder.convert(data);
-        buffer.write('\nData: $prettyData');
+    String formatted;
+    if (displayData is FormData) {
+      formatted = _formatFormData(displayData);
+    } else if (response != null && settings.responseDataConverter != null) {
+      formatted = settings.responseDataConverter!(response);
+    } else {
+      try {
+        formatted = _encoder.convert(displayData);
+      } catch (_) {
+        formatted = displayData.toString();
       }
     }
 
-    if (settings.printErrorHeaders && !(headers?.isEmpty ?? true)) {
-      final prettyHeaders = _encoder.convert(headers!.map);
-      buffer.write('\nHeaders: $prettyHeaders');
+    buffer.write('\n$label: $formatted');
+    if (truncationResult != null) {
+      buffer.write(
+        '\n[Truncated: ${SizeCalculator.formatBytes(truncationResult.originalSize)} - tap for full content]',
+      );
     }
-    return buffer.toString();
   }
+
+  void _appendRequestHeaders(StringBuffer buffer) {
+    if (!settings.printRequestHeaders) return;
+    final headers = httpLogData.requestHeaders;
+    if (headers == null || headers.isEmpty) return;
+
+    final label =
+        type == AdvancedDioLogType.request ? 'Headers' : 'Request Headers';
+    _appendMap(buffer, label, headers);
+  }
+
+  void _appendRequestExtra(StringBuffer buffer) {
+    if (!settings.printRequestExtra) return;
+    final options = httpLogData.requestOptions;
+    if (options == null || options.extra.isEmpty) return;
+
+    final extra = Map<String, dynamic>.from(options.extra)
+      ..remove('_talker_dio_logger_ts_');
+
+    if (extra.isEmpty) return;
+
+    final label =
+        type == AdvancedDioLogType.request ? 'Extra' : 'Request Extra';
+    _appendMap(buffer, label, extra);
+  }
+
+  void _appendMap(
+    StringBuffer buffer,
+    String label,
+    Map<dynamic, dynamic>? map,
+  ) {
+    if (map == null || map.isEmpty) return;
+    try {
+      buffer.write('\n$label: ${_encoder.convert(map)}');
+    } catch (_) {
+      // Ignore conversion errors in logs
+    }
+  }
+
+  String _formatFormData(FormData data) => _encoder.convert({
+    for (final field in data.fields) field.key: field.value,
+    for (final file in data.files)
+      file.key: {
+        'filename': file.value.filename,
+        'contentType': file.value.contentType.toString(),
+        'bytes': file.value.length,
+      },
+  });
 }
 
 /// Get response time from request options
 int? _getResponseTime(RequestOptions options) {
   final triggerTime = options.extra['_talker_dio_logger_ts_'];
-  if (triggerTime is int) {
-    return DateTime.now().millisecondsSinceEpoch - triggerTime;
-  }
-  return null;
+  return triggerTime is int
+      ? DateTime.now().millisecondsSinceEpoch - triggerTime
+      : null;
 }
 
-/// Create HttpLogData from request options
-HttpLogData createRequestLogData(
+/// Create base HttpLogData with common fields
+HttpLogData _createBaseLogData(
   RequestOptions options,
   AdvancedDioLoggerSettings settings,
 ) {
-  final queryParams = <String, dynamic>{};
-  options.uri.queryParameters.forEach((key, value) {
-    queryParams[key] = value;
-  });
-
-  dynamic requestBody = options.data;
-  final dynamic fullRequestBody = options.data;
-  var isRequestTruncated = false;
-
-  // Truncate large response data for display
-  if (requestBody != null) {
-    final limit = settings.getDisplayLimit(HttpContentType.unknown);
-    if (SizeCalculator.shouldTruncate(requestBody, threshold: limit.maxBytes)) {
-      final result = DataTruncator.truncate(
-        requestBody,
-        threshold: limit.maxBytes,
-      );
-      requestBody = result.data;
-      isRequestTruncated = true;
-    }
-  }
-
-  // Process headers to hide sensitive values
   final headers = Map<String, dynamic>.from(options.headers);
   HeaderMasker.mask(headers, settings);
 
@@ -354,13 +289,21 @@ HttpLogData createRequestLogData(
     uri: options.uri,
     timestamp: DateTime.now(),
     requestHeaders: headers,
-    requestBody: requestBody,
-    fullRequestBody: fullRequestBody,
-    requestQueryParams: queryParams.isNotEmpty ? queryParams : null,
-    isRequestTruncated: isRequestTruncated,
+    requestBody: options.data,
+    fullRequestBody: options.data,
+    requestQueryParams:
+        options.uri.queryParameters.isNotEmpty
+            ? options.uri.queryParameters
+            : null,
     requestOptions: options,
   );
 }
+
+/// Create HttpLogData from request options
+HttpLogData createRequestLogData(
+  RequestOptions options,
+  AdvancedDioLoggerSettings settings,
+) => _createBaseLogData(options, settings).toTruncated(settings);
 
 /// Create HttpLogData from response
 HttpLogData createResponseLogData(
@@ -370,64 +313,23 @@ HttpLogData createResponseLogData(
   final contentType = ContentTypeDetector.detectFromResponse(response);
   final contentLength = _getContentLength(response);
 
-  dynamic responseBody = response.data;
-  final dynamic fullResponseBody = response.data;
-  var isResponseTruncated = false;
-  Uint8List? imageData;
-
-  // Handle image data
-  if (contentType == HttpContentType.image) {
-    if (response.data is List<int>) {
-      imageData = Uint8List.fromList(response.data as List<int>);
-    }
-  }
-  // Truncate large response data for display
-  if (responseBody != null && contentType != HttpContentType.image) {
-    final limit = settings.getDisplayLimit(contentType);
-    if (SizeCalculator.shouldTruncate(
-      responseBody,
-      threshold: limit.maxBytes,
-    )) {
-      final result = DataTruncator.truncate(
-        responseBody,
-        threshold: limit.maxBytes,
-      );
-      responseBody = result.data;
-      isResponseTruncated = true;
-    }
-  }
-
-  // Process request headers
-  final requestHeaders = Map<String, dynamic>.from(
-    response.requestOptions.headers,
-  );
-  HeaderMasker.mask(requestHeaders, settings);
-
-  final queryParams = <String, dynamic>{};
-  response.requestOptions.uri.queryParameters.forEach((key, value) {
-    queryParams[key] = value;
-  });
-
-  return HttpLogData(
-    method: response.requestOptions.method,
-    uri: response.requestOptions.uri,
-    timestamp: DateTime.now(),
-    requestHeaders: requestHeaders,
-    requestBody: response.requestOptions.data,
-    requestQueryParams: queryParams.isNotEmpty ? queryParams : null,
-    responseHeaders: response.headers.map,
-    responseBody: responseBody,
-    fullResponseBody: fullResponseBody,
-    statusCode: response.statusCode,
-    statusMessage: response.statusMessage,
-    responseTime: _getResponseTime(response.requestOptions),
-    contentType: contentType,
-    contentLength: contentLength,
-    imageData: imageData,
-    isResponseTruncated: isResponseTruncated,
-    requestOptions: response.requestOptions,
-    response: response,
-  );
+  return _createBaseLogData(response.requestOptions, settings)
+      .copyWith(
+        responseHeaders: response.headers.map,
+        responseBody: response.data,
+        fullResponseBody: response.data,
+        statusCode: response.statusCode,
+        statusMessage: response.statusMessage,
+        responseTime: _getResponseTime(response.requestOptions),
+        contentType: contentType,
+        contentLength: contentLength,
+        imageData:
+            (contentType == HttpContentType.image && response.data is List<int>)
+                ? Uint8List.fromList(response.data as List<int>)
+                : null,
+        response: response,
+      )
+      .toTruncated(settings);
 }
 
 /// Create HttpLogData from error
@@ -435,59 +337,40 @@ HttpLogData createErrorLogData(
   DioException error,
   AdvancedDioLoggerSettings settings,
 ) {
+  final response = error.response;
   HttpContentType contentType = HttpContentType.unknown;
   int? contentLength;
   Uint8List? imageData;
 
-  if (error.response != null) {
-    contentType = ContentTypeDetector.detectFromResponse(error.response!);
-    contentLength = _getContentLength(error.response!);
+  if (response != null) {
+    contentType = ContentTypeDetector.detectFromResponse(response);
+    contentLength = _getContentLength(response);
 
-    if (contentType == HttpContentType.image &&
-        error.response!.data is List<int>) {
-      imageData = Uint8List.fromList(error.response!.data as List<int>);
+    if (contentType == HttpContentType.image && response.data is List<int>) {
+      imageData = Uint8List.fromList(response.data as List<int>);
     }
   }
 
-  // Process request headers
-  final requestHeaders = Map<String, dynamic>.from(
-    error.requestOptions.headers,
-  );
-  HeaderMasker.mask(requestHeaders, settings);
-
-  final queryParams = <String, dynamic>{};
-  error.requestOptions.uri.queryParameters.forEach((key, value) {
-    queryParams[key] = value;
-  });
-
-  return HttpLogData(
-    method: error.requestOptions.method,
-    uri: error.requestOptions.uri,
-    timestamp: DateTime.now(),
-    requestHeaders: requestHeaders,
-    requestBody: error.requestOptions.data,
-    requestQueryParams: queryParams.isNotEmpty ? queryParams : null,
-    responseHeaders: error.response?.headers.map,
-    responseBody: error.response?.data,
-    fullResponseBody: error.response?.data,
-    statusCode: error.response?.statusCode,
-    statusMessage: error.response?.statusMessage,
-    responseTime: _getResponseTime(error.requestOptions),
-    error: error.message,
-    contentType: contentType,
-    contentLength: contentLength,
-    imageData: imageData,
-    requestOptions: error.requestOptions,
-    response: error.response,
-    dioException: error,
-  );
+  return _createBaseLogData(error.requestOptions, settings)
+      .copyWith(
+        responseHeaders: response?.headers.map,
+        responseBody: response?.data,
+        fullResponseBody: response?.data,
+        statusCode: response?.statusCode,
+        statusMessage: response?.statusMessage,
+        responseTime: _getResponseTime(error.requestOptions),
+        error: error.message,
+        contentType: contentType,
+        contentLength: contentLength,
+        imageData: imageData,
+        response: response,
+        dioException: error,
+      )
+      .toTruncated(settings);
 }
 
 /// Get content length from response
 int? _getContentLength(Response response) {
-  final contentLengthHeader = response.headers.value('content-length');
-  if (contentLengthHeader != null) {
-    return int.tryParse(contentLengthHeader);
-  }
-  return null;
+  final header = response.headers.value('content-length');
+  return header != null ? int.tryParse(header) : null;
 }

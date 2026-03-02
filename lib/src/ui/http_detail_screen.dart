@@ -17,16 +17,12 @@ class HttpDetailScreen extends StatefulWidget {
   const HttpDetailScreen({
     super.key,
     required this.httpLogData,
-    this.requestLog,
-    this.responseLog,
-    this.errorLog,
+    this.advancedLog,
     this.fileSaver,
   });
 
   final HttpLogData httpLogData;
-  final AdvancedDioRequestLog? requestLog;
-  final AdvancedDioResponseLog? responseLog;
-  final AdvancedDioErrorLog? errorLog;
+  final AdvancedDioLog? advancedLog;
 
   /// Custom file saver implementation.
   /// If not provided, uses [DefaultFileSaver].
@@ -49,11 +45,9 @@ class _HttpDetailScreenState extends State<HttpDetailScreen>
   FileSaverInterface get _fileSaver =>
       widget.fileSaver ?? const DefaultFileSaver();
 
-  /// Get the jsonSoftWrapTextValueAtWidth setting from any available log
+  /// Get the jsonSoftWrapTextValueAtWidth setting from the advanced log
   double? get jsonSoftWrapTextValueAtWidth =>
-      widget.requestLog?.settings.jsonSoftWrapTextValueAtWidth ??
-      widget.responseLog?.settings.jsonSoftWrapTextValueAtWidth ??
-      widget.errorLog?.settings.jsonSoftWrapTextValueAtWidth;
+      widget.advancedLog?.settings.jsonSoftWrapTextValueAtWidth;
 
   @override
   void initState() {

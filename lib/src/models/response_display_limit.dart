@@ -12,23 +12,31 @@
 final class ResponseDisplayLimit {
   final int minBytes;
   final int maxBytes;
-  final int? maxLines;
+  final int maxLines;
   final bool enablePreview;
+
+  static const recommendedMinBytes = 1024;
+  static const recommendedMaxBytes = 1024 * 1024;
+  static const recommendedMaxLines = 20;
+
+  static const clampMinBytes = recommendedMinBytes;
+  static const clampMaxLines = 1000;
+  static const clampMaxBytes = recommendedMaxBytes * 100;
 
   /// Create a display limit with validated values.
   ///
   /// All byte values are clamped to safe ranges (1KB - 100MB).
   /// Line counts are clamped to 1-1000 range.
   factory ResponseDisplayLimit({
-    int minBytes = 1024,
-    int maxBytes = 1024 * 1024,
-    int? maxLines,
+    int minBytes = recommendedMinBytes,
+    int maxBytes = recommendedMaxBytes,
+    int maxLines = recommendedMaxLines,
     bool enablePreview = true,
   }) {
     return ResponseDisplayLimit._internal(
-      minBytes.clamp(1024, 100 * 1024 * 1024),
-      maxBytes.clamp(1024, 100 * 1024 * 1024),
-      maxLines?.clamp(1, 1000),
+      minBytes.clamp(clampMinBytes, clampMaxBytes),
+      maxBytes.clamp(clampMinBytes, clampMaxBytes),
+      maxLines.clamp(1, clampMaxLines),
       enablePreview,
     );
   }

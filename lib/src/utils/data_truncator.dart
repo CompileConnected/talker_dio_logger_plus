@@ -1,41 +1,37 @@
 import 'dart:convert';
+
 import 'package:talker_dio_logger_plus/src/utils/size_calculator.dart';
 
 /// Utility class for truncating large data
 class DataTruncator {
-  /// Truncate data if it exceeds threshold
-  static TruncationResult truncate(
+  /// Truncate data if it exceeds threshold.
+  /// Returns null if truncation is not needed.
+  static TruncationResult? truncate(
     dynamic data, {
-    int? threshold,
+    required int threshold,
     int? maxLines,
   }) {
-    final actualThreshold = threshold ?? SizeCalculator.defaultTruncateThreshold;
     final size = SizeCalculator.calculateSize(data);
 
-    if (size <= actualThreshold) {
-      return TruncationResult(
-        data: data,
-        isTruncated: false,
-        originalSize: size,
-        truncatedSize: size,
-      );
+    if (size <= threshold) {
+      return null;
     }
 
     // Truncate based on data type
     if (data is String) {
-      return _truncateString(data, actualThreshold, size);
+      return _truncateString(data, threshold, size);
     }
 
     if (data is Map) {
-      return _truncateMap(data, actualThreshold, size, maxLines);
+      return _truncateMap(data, threshold, size, maxLines);
     }
 
     if (data is List) {
-      return _truncateList(data, actualThreshold, size, maxLines);
+      return _truncateList(data, threshold, size, maxLines);
     }
 
     // Default: convert to string and truncate
-    return _truncateString(data.toString(), actualThreshold, size);
+    return _truncateString(data.toString(), threshold, size);
   }
 
   /// Truncate string data
@@ -49,7 +45,6 @@ class DataTruncator {
     if (data.length <= charLimit) {
       return TruncationResult(
         data: data,
-        isTruncated: false,
         originalSize: originalSize,
         truncatedSize: originalSize,
       );
@@ -57,8 +52,8 @@ class DataTruncator {
 
     final truncated = data.substring(0, charLimit);
     return TruncationResult(
-      data: '$truncated\n\n... [TRUNCATED - ${SizeCalculator.formatBytes(originalSize)} total]',
-      isTruncated: true,
+      data:
+          '$truncated\n\n... [TRUNCATED - ${SizeCalculator.formatBytes(originalSize)} total]',
       originalSize: originalSize,
       truncatedSize: SizeCalculator.calculateSize(truncated),
     );
@@ -77,8 +72,7 @@ class DataTruncator {
 
     for (final entry in data.entries) {
       if (lineCount >= effectiveMaxLines) {
-        truncated['... truncated'] =
-            '${data.length - lineCount} more entries';
+        truncated['... truncated'] = '${data.length - lineCount} more entries';
         break;
       }
 
@@ -102,7 +96,6 @@ class DataTruncator {
 
     return TruncationResult(
       data: truncated,
-      isTruncated: true,
       originalSize: originalSize,
       truncatedSize: SizeCalculator.calculateSize(truncated),
     );
@@ -122,7 +115,8 @@ class DataTruncator {
     for (final item in data) {
       if (lineCount >= effectiveMaxLines) {
         truncated.add(
-            '... and ${data.length - lineCount} more items [truncated]');
+          '... and ${data.length - lineCount} more items [truncated]',
+        );
         break;
       }
 
@@ -143,7 +137,6 @@ class DataTruncator {
 
     return TruncationResult(
       data: truncated,
-      isTruncated: true,
       originalSize: originalSize,
       truncatedSize: SizeCalculator.calculateSize(truncated),
     );
@@ -200,17 +193,14 @@ class DataTruncator {
 class TruncationResult {
   const TruncationResult({
     required this.data,
-    required this.isTruncated,
     required this.originalSize,
     required this.truncatedSize,
   });
 
   final dynamic data;
-  final bool isTruncated;
   final int originalSize;
   final int truncatedSize;
 
   String get sizeInfo =>
       '${SizeCalculator.formatBytes(truncatedSize)} / ${SizeCalculator.formatBytes(originalSize)}';
 }
-

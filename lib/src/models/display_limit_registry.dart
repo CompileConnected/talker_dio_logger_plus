@@ -35,23 +35,16 @@ final class DisplayLimitRegistry {
   /// Create registry with optional per-type overrides.
   DisplayLimitRegistry({Map<HttpContentType, ResponseDisplayLimit>? overrides})
     : _limits = {
-        HttpContentType.json: ResponseDisplayLimit(
-          maxBytes: 1024 * 1024,
-          maxLines: 20,
+        HttpContentType.json: ResponseDisplayLimit(),
+        HttpContentType.image: ResponseDisplayLimit(
+          maxBytes: 5 * ResponseDisplayLimit.recommendedMinBytes, //500 KB
         ),
-        HttpContentType.image: ResponseDisplayLimit(maxBytes: 500 * 1024),
-        HttpContentType.text: ResponseDisplayLimit(
-          maxBytes: 1024 * 1024,
-          maxLines: 100,
-        ),
-        HttpContentType.html: ResponseDisplayLimit(maxBytes: 1024 * 1024),
-        HttpContentType.xml: ResponseDisplayLimit(
-          maxBytes: 1024 * 1024,
-          maxLines: 100,
-        ),
-        HttpContentType.file: ResponseDisplayLimit(maxBytes: 1024 * 1024),
-        HttpContentType.binary: ResponseDisplayLimit(maxBytes: 1024 * 1024),
-        HttpContentType.unknown: ResponseDisplayLimit(maxBytes: 1024 * 1024),
+        HttpContentType.text: ResponseDisplayLimit(),
+        HttpContentType.html: ResponseDisplayLimit(),
+        HttpContentType.xml: ResponseDisplayLimit(),
+        HttpContentType.file: ResponseDisplayLimit(),
+        HttpContentType.binary: ResponseDisplayLimit(),
+        HttpContentType.unknown: ResponseDisplayLimit(),
         ...?overrides,
       };
 
