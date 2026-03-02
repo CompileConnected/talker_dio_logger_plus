@@ -1,10 +1,10 @@
 import 'package:talker_dio_logger_plus/src/models/display_limit.dart';
 
-import 'http_log_data.dart';
+import 'http_body_type.dart';
 
 /// Registry for display limits per HTTP content type.
 ///
-/// Maps each content type (JSON, image, text, HTML, XML, file, binary, unknown) to its
+/// Maps each content type (JSON, image, text, HTML, XML, unknown) to its
 /// display limit configuration. Provides sensible defaults and allows overrides.
 ///
 /// The internal map is unmodifiable — the registry is effectively immutable after
@@ -19,16 +19,16 @@ import 'http_log_data.dart';
 /// // Override specific types
 /// final customRegistry = DisplayLimitRegistry(
 ///   overrides: {
-///     HttpContentType.json: DisplayLimit(maxBytes: 500 * 1024),
-///     HttpContentType.image: DisplayLimit(maxBytes: 2 * 1024 * 1024),
+///     HttpBodyType.json: DisplayLimit(maxBytes: 500 * 1024),
+///     HttpBodyType.image: DisplayLimit(maxBytes: 2 * 1024 * 1024),
 ///   },
 /// );
 ///
 /// // Get limit for a type
-/// final jsonLimit = registry.get(HttpContentType.json);
+/// final jsonLimit = registry.get(HttpBodyType.json);
 /// ```
 final class DisplayLimitRegistry {
-  final Map<HttpContentType, DisplayLimit> _limits;
+  final Map<HttpBodyType, DisplayLimit> _limits;
 
   /// Canonical default registry. Created once and never mutated.
   static final DisplayLimitRegistry defaults = DisplayLimitRegistry();
@@ -37,18 +37,16 @@ final class DisplayLimitRegistry {
   ///
   /// The resulting registry is immutable; the supplied [overrides] map is
   /// copied into an unmodifiable internal map.
-  DisplayLimitRegistry({Map<HttpContentType, DisplayLimit>? overrides})
+  DisplayLimitRegistry({Map<HttpBodyType, DisplayLimit>? overrides})
     : _limits = Map.unmodifiable({
-        HttpContentType.json: DisplayLimit(),
-        HttpContentType.image: DisplayLimit(
+        HttpBodyType.json: DisplayLimit(),
+        HttpBodyType.image: DisplayLimit(
           maxBytes: 5 * 1024, // 5 KB inline image cap
         ),
-        HttpContentType.text: DisplayLimit(),
-        HttpContentType.html: DisplayLimit(),
-        HttpContentType.xml: DisplayLimit(),
-        HttpContentType.file: DisplayLimit(),
-        HttpContentType.binary: DisplayLimit(),
-        HttpContentType.unknown: DisplayLimit(),
+        HttpBodyType.text: DisplayLimit(),
+        HttpBodyType.html: DisplayLimit(),
+        HttpBodyType.xml: DisplayLimit(),
+        HttpBodyType.unknown: DisplayLimit(),
         ...?overrides,
       });
 
@@ -56,15 +54,13 @@ final class DisplayLimitRegistry {
   ///
   /// Returns the configured limit for this type, or the 'unknown' limit
   /// if this type is not explicitly configured.
-  DisplayLimit get(HttpContentType type) =>
-      _limits[type] ?? _limits[HttpContentType.unknown]!;
+  DisplayLimit get(HttpBodyType type) =>
+      _limits[type] ?? _limits[HttpBodyType.unknown]!;
 
   /// Create a copy with selective limit overrides.
   ///
   /// Useful for adjusting limits without modifying the original.
-  DisplayLimitRegistry copyWith({
-    Map<HttpContentType, DisplayLimit>? overrides,
-  }) {
+  DisplayLimitRegistry copyWith({Map<HttpBodyType, DisplayLimit>? overrides}) {
     return DisplayLimitRegistry(overrides: {..._limits, ...?overrides});
   }
 

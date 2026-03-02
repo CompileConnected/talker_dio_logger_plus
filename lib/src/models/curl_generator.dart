@@ -35,7 +35,9 @@ class CurlGenerator {
 
     // Data/Body
     final data = options.data;
-    if (data != null) {
+    if (data is FormData) {
+      _writeFormDataArgs(buffer, data);
+    } else if (data != null) {
       final bodyString = _formatBody(data, options.contentType);
       if (bodyString != null && bodyString.isNotEmpty) {
         // Escape single quotes in the body
@@ -81,6 +83,23 @@ class CurlGenerator {
     );
   }
 
+  /// Write multipart form-data as proper `-F` flags.
+  ///
+  /// Text fields become `-F 'key=value'`.
+  /// File parts become `-F 'key=@filename;type=mime'` (file content is not
+  /// embedded — cURL reads the file at runtime via `@`).
+  static void _writeFormDataArgs(StringBuffer buffer, FormData data) {
+    for (final field in data.fields) {
+      final escaped = field.value.replaceAll("'", "'\\''");
+      buffer.write(" \\\n  -F '${field.key}=$escaped'");
+    }
+    for (final file in data.files) {
+      final filename = file.value.filename ?? 'file';
+      final mime = file.value.contentType.toString();
+      buffer.write(" \\\n  -F '${file.key}=@$filename;type=$mime'");
+    }
+  }
+
   /// Format request body for cURL
   static String? _formatBody(dynamic data, String? contentType) {
     if (data == null) return null;
@@ -98,19 +117,9 @@ class CurlGenerator {
     }
 
     if (data is FormData) {
-      // For FormData, we'll convert to a simpler representation
-      final parts = <String>[];
-      for (final field in data.fields) {
-        parts.add('${field.key}=${Uri.encodeQueryComponent(field.value)}');
-      }
-      for (final file in data.files) {
-        final fileLength = file.value.length;
-        final sizeInfo = '$fileLength bytes';
-        parts.add(
-          '${file.key}=@${file.value.filename ?? "file"} (binary, $sizeInfo)',
-        );
-      }
-      return parts.join('&');
+      // FormData is handled separately via _writeFormDataArgs; return null here
+      // so the generic -d branch is skipped.
+      return null;
     }
 
     return data.toString();

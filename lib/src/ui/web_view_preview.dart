@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:talker_dio_logger_plus/src/ui/talker_theme_provider.dart';
+import 'package:talker_dio_logger_plus/src/utils/clipboard_util.dart';
 
 /// Widget to preview HTML content using an actual WebView
 class WebViewPreview extends StatelessWidget {
@@ -36,7 +36,6 @@ class WebViewPreview extends StatelessWidget {
                 ),
               ),
             ),
-            // Tap-absorbing overlay that lets GestureDetector capture the tap
             Positioned.fill(
               child: Container(
                 decoration: BoxDecoration(
@@ -211,15 +210,11 @@ class _FullScreenHtmlPreviewState extends State<FullScreenHtmlPreview> {
                         IconButton(
                           icon: Icon(Icons.copy, color: textColor),
                           onPressed: () {
-                            Clipboard.setData(
-                              ClipboardData(text: widget.htmlContent),
-                            );
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
+                            ClipboardUtil.copy(
+                              widget.htmlContent,
+                              context: context,
+                              snackBarMessage:
                                   'HTML source copied to clipboard',
-                                ),
-                              ),
                             );
                           },
                           tooltip: 'Copy source',

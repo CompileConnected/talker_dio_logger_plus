@@ -4,7 +4,12 @@ import 'package:talker_dio_logger_plus/src/advanced_dio_logger_settings.dart';
 import 'package:talker_dio_logger_plus/src/advanced_dio_logs.dart';
 import 'package:talker_dio_logger_plus/src/utils/talker_compat.dart';
 
-/// Advanced Dio HTTP client logger with rich features
+import 'models/http_log_data.dart';
+
+/// Advanced Dio HTTP client logger with rich features.
+///
+/// Attach this interceptor to a [Dio] instance to automatically log
+/// requests, responses, and errors to [Talker].
 ///
 /// Features:
 /// - cURL command generation (with option to hide sensitive data)
@@ -17,62 +22,42 @@ class AdvancedDioLogger extends Interceptor {
   AdvancedDioLogger({Talker? talker, AdvancedDioLoggerSettings? settings}) {
     _talker = talker ?? Talker();
     this.settings = settings ?? AdvancedDioLoggerSettings();
-    // Register HTTP log keys for filtering (version-compatible)
     _talker.registerHttpLogKeys();
   }
 
-  /// Timestamp key for response time calculation
-  static const kTimeStampKey = '_talker_dio_logger_ts_';
+  /// Key added to `RequestOptions.extra` to calculate response time.
+  static const _requestTimestampKey = '_talker_dio_logger_ts_';
 
   late Talker _talker;
 
-  /// Logger settings
+  /// Logger settings.
   late AdvancedDioLoggerSettings settings;
 
-  /// Get the Talker instance
+  /// The [Talker] instance used for logging.
   Talker get talker => _talker;
 
-  /// Update settings
+  /// Replace the current settings at runtime.
   void updateSettings(AdvancedDioLoggerSettings newSettings) {
     settings = newSettings;
   }
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    // Add timestamp for response time calculation
     if (settings.enabled && settings.printResponseTime) {
-      options.extra[kTimeStampKey] = DateTime.now().millisecondsSinceEpoch;
+      options.extra[_requestTimestampKey] =
+          DateTime.now().millisecondsSinceEpoch;
     }
 
     super.onRequest(options, handler);
 
     if (!settings.enabled) return;
+    if (!_shouldLog(settings.requestFilter, options)) return;
 
-    // Apply request filter with error handling
-    // Why: User-provided filter can throw - we shouldn't crash the app
-    bool accepted;
-    try {
-      accepted = settings.requestFilter?.call(options) ?? true;
-    } catch (e, st) {
-      debugPrint('AdvancedDioLogger: requestFilter error: $e\n$st');
-      accepted = true; // Default to logging on filter error
-    }
-    if (!accepted) return;
-
-    try {
-      final message = '${options.uri}';
-      final httpLogData = createRequestLogData(options, settings);
-      final httpLog = AdvancedDioLog(
-        message,
-        type: AdvancedDioLogType.request,
-        settings: settings,
-        httpLogData: httpLogData,
-      );
-      _talker.logCustom(httpLog);
-    } catch (e, st) {
-      // Never crash the app due to logging errors
-      debugPrint('AdvancedDioLogger: Failed to log request: $e\n$st');
-    }
+    _emitLog(
+      uri: options.uri,
+      type: AdvancedDioLogType.request,
+      buildData: () => HttpLogDataFactory.fromRequest(options, settings),
+    );
   }
 
   @override
@@ -80,30 +65,13 @@ class AdvancedDioLogger extends Interceptor {
     super.onResponse(response, handler);
 
     if (!settings.enabled) return;
+    if (!_shouldLog(settings.responseFilter, response)) return;
 
-    // Apply response filter with error handling
-    bool accepted;
-    try {
-      accepted = settings.responseFilter?.call(response) ?? true;
-    } catch (e, st) {
-      debugPrint('AdvancedDioLogger: responseFilter error: $e\n$st');
-      accepted = true;
-    }
-    if (!accepted) return;
-
-    try {
-      final message = '${response.requestOptions.uri}';
-      final httpLogData = createResponseLogData(response, settings);
-      final httpLog = AdvancedDioLog(
-        message,
-        type: AdvancedDioLogType.response,
-        settings: settings,
-        httpLogData: httpLogData,
-      );
-      _talker.logCustom(httpLog);
-    } catch (e, st) {
-      debugPrint('AdvancedDioLogger: Failed to log response: $e\n$st');
-    }
+    _emitLog(
+      uri: response.requestOptions.uri,
+      type: AdvancedDioLogType.response,
+      buildData: () => HttpLogDataFactory.fromResponse(response, settings),
+    );
   }
 
   @override
@@ -111,29 +79,48 @@ class AdvancedDioLogger extends Interceptor {
     super.onError(err, handler);
 
     if (!settings.enabled) return;
+    if (!_shouldLog(settings.errorFilter, err)) return;
 
-    // Apply error filter with error handling
-    bool accepted;
+    _emitLog(
+      uri: err.requestOptions.uri,
+      type: AdvancedDioLogType.error,
+      buildData: () => HttpLogDataFactory.fromError(err, settings),
+    );
+  }
+
+  /// Runs [filter] safely. Returns `true` when the log should be emitted.
+  ///
+  /// If the user-provided filter throws, we default to logging the entry
+  /// instead of crashing the app.
+  bool _shouldLog<T>(bool Function(T)? filter, T value) {
+    if (filter == null) return true;
     try {
-      accepted = settings.errorFilter?.call(err) ?? true;
+      return filter(value);
     } catch (e, st) {
-      debugPrint('AdvancedDioLogger: errorFilter error: $e\n$st');
-      accepted = true;
+      debugPrint('AdvancedDioLogger: filter error: $e\n$st');
+      return true;
     }
-    if (!accepted) return;
+  }
 
+  /// Builds the log data and emits it through [_talker].
+  ///
+  /// [buildData] is called lazily so we skip expensive work when the
+  /// logger is disabled or filtered out.
+  void _emitLog({
+    required Uri uri,
+    required AdvancedDioLogType type,
+    required HttpLogData Function() buildData,
+  }) {
     try {
-      final message = '${err.requestOptions.uri}';
-      final httpLogData = createErrorLogData(err, settings);
-      final httpErrorLog = AdvancedDioLog(
-        message,
-        type: AdvancedDioLogType.error,
+      final log = AdvancedDioLog(
+        '$uri',
+        type: type,
         settings: settings,
-        httpLogData: httpLogData,
+        httpLogData: buildData(),
       );
-      _talker.logCustom(httpErrorLog);
+      _talker.logCustom(log);
     } catch (e, st) {
-      debugPrint('AdvancedDioLogger: Failed to log error: $e\n$st');
+      debugPrint('AdvancedDioLogger: Failed to log $type: $e\n$st');
     }
   }
 }

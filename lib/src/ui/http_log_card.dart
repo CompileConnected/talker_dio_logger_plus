@@ -1,18 +1,24 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:talker_dio_logger_plus/src/advanced_dio_logs.dart';
 import 'package:talker_dio_logger_plus/src/models/curl_generator.dart';
 import 'package:talker_dio_logger_plus/src/models/http_log_data.dart';
 import 'package:talker_dio_logger_plus/src/ui/image_preview.dart';
+import 'package:talker_dio_logger_plus/src/utils/clipboard_util.dart';
 import 'package:talker_dio_logger_plus/src/utils/size_calculator.dart';
 import 'package:talker_dio_logger_plus/src/utils/status_color.dart';
 import 'package:talker_flutter/talker_flutter.dart';
 
 import '../../talker_dio_logger_plus.dart';
 
-/// Custom HTTP log card widget with advanced features
+const _jsonEncoder = JsonEncoder.withIndent('  ');
+
+/// A card that displays a single HTTP log entry (request, response, or error).
+///
+/// Renders an expandable card showing method, URL, status, timing, and a
+/// truncated preview of the response body. Tap "Detail" to navigate to the
+/// full [HttpDetailScreen].
 class HttpLogCard extends StatefulWidget {
   const HttpLogCard({
     super.key,
@@ -30,8 +36,7 @@ class HttpLogCard extends StatefulWidget {
   final bool expanded;
   final EdgeInsets? margin;
 
-  /// Theme configuration for the screen.
-  /// Defaults to [TalkerScreenTheme] with default values.
+  /// Theme for the Talker screen. Defaults to [TalkerScreenTheme].
   final TalkerScreenTheme theme;
 
   @override
@@ -53,25 +58,20 @@ class _HttpLogCardState extends State<HttpLogCard> {
     _expanded = widget.expanded;
   }
 
-  AdvancedDioLog? get _advancedLog {
-    if (widget.data is AdvancedDioLog) {
-      return widget.data as AdvancedDioLog;
-    }
-    return null;
-  }
+  /// The underlying advanced log, or `null` for plain [TalkerData].
+  AdvancedDioLog? get _advancedLog =>
+      widget.data is AdvancedDioLog ? widget.data as AdvancedDioLog : null;
 
   HttpLogData? get _httpLogData => _advancedLog?.httpLogData;
 
   bool get _isRequest => _advancedLog?.type == AdvancedDioLogType.request;
+
   bool get _isError => _advancedLog?.type == AdvancedDioLogType.error;
 
-  /// Effective display-limit registry.
-  ///
-  /// Sourced from the [AdvancedDioLoggerSettings] that was baked into the log
-  /// at intercept time — this is the single source of truth for the user's
-  /// per-content-type display limits.  Falls back to [DisplayLimitRegistry.defaults]
-  /// only for non-advanced (plain TalkerData) log entries.
-  DisplayLimitRegistry get _effectiveRegistry =>
+  bool get _enableCurl => _advancedLog?.settings.enableCurlGeneration ?? false;
+
+  /// Display-limit registry from settings (falls back to defaults).
+  DisplayLimitRegistry get _displayLimits =>
       _advancedLog?.settings.displayLimitRegistry ??
       DisplayLimitRegistry.defaults;
 
@@ -85,7 +85,6 @@ class _HttpLogCardState extends State<HttpLogCard> {
   @override
   Widget build(BuildContext context) {
     final httpData = _httpLogData;
-    final bgColor = widget.theme.cardColor;
 
     return Padding(
       padding: widget.margin ?? const EdgeInsets.only(bottom: 8),
@@ -96,14 +95,13 @@ class _HttpLogCardState extends State<HttpLogCard> {
           padding: const EdgeInsets.all(12),
           margin: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: bgColor,
+            color: widget.theme.cardColor,
             border: Border.all(color: _statusColor),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header row
               _buildHeader(),
               const SizedBox(height: 8),
               // URL
@@ -113,12 +111,10 @@ class _HttpLogCardState extends State<HttpLogCard> {
                 overflow: _expanded ? null : TextOverflow.ellipsis,
                 style: TextStyle(color: _statusColor, fontSize: 12),
               ),
-              // Expanded content
               if (_expanded) ...[
                 const SizedBox(height: 12),
                 _buildExpandedContent(),
               ],
-              // Action buttons
               const SizedBox(height: 8),
               _buildActionButtons(),
             ],
@@ -133,84 +129,47 @@ class _HttpLogCardState extends State<HttpLogCard> {
 
     return Row(
       children: [
-        // Method badge
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: _statusColor.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            httpData?.method ??
-                (_isRequest ? 'REQUEST' : (_isError ? 'ERROR' : 'RESPONSE')),
-            style: TextStyle(
-              color: _statusColor,
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+        // Method badge (e.g. GET, POST)
+        _StatusBadge(
+          label:
+              httpData?.method ??
+              (_isRequest ? 'REQUEST' : (_isError ? 'ERROR' : 'RESPONSE')),
+          color: _statusColor,
         ),
         const SizedBox(width: 8),
-        // Status code (for response/error)
+
+        // Status code badge (e.g. 200, 404)
         if (httpData?.statusCode != null) ...[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: _statusColor.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              '${httpData!.statusCode}',
-              style: TextStyle(
-                color: _statusColor,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
+          _StatusBadge(label: '${httpData!.statusCode}', color: _statusColor),
           const SizedBox(width: 8),
         ],
+
         // Response time
         if (httpData?.responseTime != null) ...[
-          Icon(Icons.timer_outlined, size: 12, color: Colors.grey[400]),
-          const SizedBox(width: 4),
-          Text(
-            '${httpData!.responseTime}ms',
-            style: TextStyle(color: Colors.grey[400], fontSize: 10),
+          _MetaLabel(
+            icon: Icons.timer_outlined,
+            text: '${httpData!.responseTime}ms',
           ),
           const SizedBox(width: 8),
         ],
+
         // Response size
-        if (httpData?.approximateResponseSize != null &&
-            httpData!.approximateResponseSize > 0) ...[
-          Icon(Icons.data_usage, size: 12, color: Colors.grey[400]),
-          const SizedBox(width: 4),
-          Text(
-            SizeCalculator.formatBytes(httpData.approximateResponseSize),
-            style: TextStyle(color: Colors.grey[400], fontSize: 10),
+        if (httpData != null && httpData.approximateResponseSize > 0) ...[
+          _MetaLabel(
+            icon: Icons.data_usage,
+            text: SizeCalculator.formatBytes(httpData.approximateResponseSize),
           ),
           const SizedBox(width: 8),
         ],
-        // Content type badge
-        if (httpData?.contentType != null &&
-            httpData!.contentType != HttpContentType.unknown) ...[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.grey[700],
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              httpData.contentType.name.toUpperCase(),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 8,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
+
+        // Content type tag (JSON, HTML, etc.)
+        if (httpData != null &&
+            httpData.contentType != HttpBodyType.unknown) ...[
+          _ContentTypeBadge(contentType: httpData.contentType),
         ],
+
         const Spacer(),
+
         // Timestamp
         Text(
           _formatTime(httpData?.timestamp ?? DateTime.now()),
@@ -232,15 +191,12 @@ class _HttpLogCardState extends State<HttpLogCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Show image preview if it's an image response
         if (httpData.isImage && httpData.imageData != null)
           _buildImagePreview(httpData),
 
-        // Show error message if it's an error
         if (_isError && httpData.error != null)
           _buildErrorMessage(httpData.error!),
 
-        // Show response body if available (for non-image responses)
         if (!_isRequest && !httpData.isImage && httpData.responseBody != null)
           _buildResponseBodyPreview(httpData),
       ],
@@ -251,126 +207,49 @@ class _HttpLogCardState extends State<HttpLogCard> {
     final responseBody = httpData.responseBody;
     if (responseBody == null) return const SizedBox.shrink();
 
-    final displayLimit = _effectiveRegistry.get(httpData.contentType);
-
-    String displayText;
-    if (responseBody is Map || responseBody is List) {
-      try {
-        const encoder = JsonEncoder.withIndent('  ');
-        displayText = encoder.convert(responseBody);
-      } catch (_) {
-        displayText = responseBody.toString();
-      }
-    } else {
-      displayText = responseBody.toString();
+    // Respect the enablePreview flag — when false, skip the UI preview entirely.
+    final displayLimit = _displayLimits.get(httpData.contentType);
+    if (!displayLimit.enablePreview) {
+      return _buildPreviewDisabledNotice();
     }
 
-    // Check maxBytes first — if over limit, don't show preview at all
-    final byteLength = displayText.length;
-    if (byteLength > displayLimit.maxBytes) {
-      return _buildTooLargeForPreview(byteLength, displayLimit.maxBytes);
+    // Step 1: Convert body to displayable text.
+    final displayText = _bodyToString(responseBody);
+
+    // Step 2: Check size limit — skip preview if too large.
+    if (displayText.length > displayLimit.maxBytes) {
+      return _buildTooLargeNotice(displayText.length, displayLimit.maxBytes);
     }
 
-    // Calculate lines and check if we need to truncate by maxLines
-    final lines = displayText.split('\n');
+    // Step 3: Truncate by line count if needed.
+    final allLines = displayText.split('\n');
     final maxLines = displayLimit.maxLines;
-    final shouldTruncate = lines.length > maxLines;
-    final displayLines = shouldTruncate ? lines.take(maxLines).toList() : lines;
-    final truncatedText = displayLines.join('\n');
+    final isTruncated = allLines.length > maxLines;
+    final visibleLines =
+        isTruncated ? allLines.take(maxLines).toList() : allLines;
 
-    // Line number gutter width: enough digits for the last line number
-    final lastLineNo = displayLines.length;
-    final gutterWidth = lastLineNo.toString().length;
-
-    final codeColor = _getResponseTextColor(httpData.contentType);
-    const fontSize = 11.0;
-    const fontFamily = 'monospace';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                'Response',
-                style: TextStyle(
-                  color: Colors.grey[400],
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const Spacer(),
-              if (shouldTruncate)
-                Text(
-                  '${lines.length - maxLines} more lines...',
-                  style: TextStyle(color: Colors.grey[500], fontSize: 10),
-                ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          // Line-numbered body
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Gutter: right-aligned line numbers
-              SelectableText(
-                List.generate(
-                  displayLines.length,
-                  (i) => (i + 1).toString().padLeft(gutterWidth),
-                ).join('\n'),
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontFamily: fontFamily,
-                  fontSize: fontSize,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Vertical separator
-              Container(
-                width: 1,
-                color: Colors.grey[700],
-                margin: const EdgeInsets.only(right: 8),
-              ),
-              // Code
-              Expanded(
-                child: SelectableText(
-                  truncatedText,
-                  style: TextStyle(
-                    color: codeColor,
-                    fontFamily: fontFamily,
-                    fontSize: fontSize,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (shouldTruncate)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                'Tap "Detail" to view full response',
-                style: TextStyle(
-                  color: Colors.grey[500],
-                  fontSize: 10,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ),
-        ],
-      ),
+    // Step 4: Render the code block with line numbers.
+    return _CodePreview(
+      lines: visibleLines,
+      codeColor: _getResponseTextColor(httpData.contentType),
+      isTruncated: isTruncated,
+      hiddenLineCount: isTruncated ? allLines.length - maxLines : 0,
     );
   }
 
-  Widget _buildTooLargeForPreview(int byteLength, int maxBytes) {
+  /// Converts a response body (Map, List, or other) to a pretty-printed string.
+  static String _bodyToString(dynamic body) {
+    if (body is Map || body is List) {
+      try {
+        return _jsonEncoder.convert(body);
+      } catch (_) {
+        return body.toString();
+      }
+    }
+    return body.toString();
+  }
+
+  Widget _buildTooLargeNotice(int actualBytes, int maxBytes) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(8),
@@ -384,7 +263,10 @@ class _HttpLogCardState extends State<HttpLogCard> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Response too large to preview (${SizeCalculator.formatBytes(byteLength)} > ${SizeCalculator.formatBytes(maxBytes)}). Tap "Detail" to view.',
+              'Response too large to preview '
+              '(${SizeCalculator.formatBytes(actualBytes)} > '
+              '${SizeCalculator.formatBytes(maxBytes)}). '
+              'Tap "Detail" to view.',
               style: TextStyle(
                 color: Colors.grey[400],
                 fontSize: 11,
@@ -397,32 +279,67 @@ class _HttpLogCardState extends State<HttpLogCard> {
     );
   }
 
-  Color _getResponseTextColor(HttpContentType contentType) {
-    switch (contentType) {
-      case HttpContentType.json:
-        return Colors.green[300]!;
-      case HttpContentType.html:
-        return Colors.orange[300]!;
-      case HttpContentType.xml:
-        return Colors.blue[300]!;
-      default:
-        return Colors.grey[300]!;
-    }
+  Color _getResponseTextColor(HttpBodyType contentType) {
+    return switch (contentType) {
+      HttpBodyType.json => Colors.green[300]!,
+      HttpBodyType.html => Colors.orange[300]!,
+      HttpBodyType.xml => Colors.blue[300]!,
+      _ => Colors.grey[300]!,
+    };
+  }
+
+  Widget _buildPreviewDisabledNotice() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.visibility_off_outlined,
+            size: 14,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Preview disabled for this content type. '
+              'Tap "Detail" to view.',
+              style: TextStyle(
+                color: Colors.grey[400],
+                fontSize: 11,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildImagePreview(HttpLogData httpData) {
-    final canShowInline =
-        httpData.imageData!.length <=
-        _effectiveRegistry.get(httpData.contentType).maxBytes;
+    final imageBytes = httpData.imageData!;
+    final limit = _displayLimits.get(httpData.contentType);
 
-    if (canShowInline) {
+    // Respect the enablePreview flag.
+    if (!limit.enablePreview) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: _buildPreviewDisabledNotice(),
+      );
+    }
+
+    if (imageBytes.length <= limit.maxBytes) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: ImagePreview(
-          imageData: httpData.imageData!,
+          imageData: imageBytes,
           maxHeight: 150,
           showSaveButton: false,
-          onTap: () => _openDetailScreen(),
+          onTap: _openDetailScreen,
         ),
       );
     }
@@ -430,8 +347,8 @@ class _HttpLogCardState extends State<HttpLogCard> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: ImagePlaceholder(
-        size: httpData.imageData!.length,
-        onTap: () => _openDetailScreen(),
+        size: imageBytes.length,
+        onTap: _openDetailScreen,
       ),
     );
   }
@@ -464,15 +381,11 @@ class _HttpLogCardState extends State<HttpLogCard> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        // Copy cURL button
-        _buildActionButton(
-          icon: Icons.terminal,
-          label: 'cURL',
-          onTap: _copyCurl,
-        ),
+        if (_enableCurl)
+          _ActionChip(icon: Icons.terminal, label: 'cURL', onTap: _copyCurl),
+
         const SizedBox(width: 8),
-        // Detail button
-        _buildActionButton(
+        _ActionChip(
           icon: Icons.open_in_new,
           label: 'Detail',
           onTap: _openDetailScreen,
@@ -481,11 +394,144 @@ class _HttpLogCardState extends State<HttpLogCard> {
     );
   }
 
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
+  void _onTap() {
+    if (widget.onTap != null) {
+      widget.onTap?.call();
+      return;
+    }
+    setState(() => _expanded = !_expanded);
+  }
+
+  void _copyCurl() {
+    String? curl;
+
+    if (_advancedLog != null) {
+      curl = _advancedLog!.curlCommandSafe;
+    } else if (_httpLogData?.requestOptions != null) {
+      curl = CurlGenerator.generateSafe(_httpLogData!.requestOptions!);
+    }
+
+    if (curl != null) {
+      ClipboardUtil.copy(
+        curl,
+        context: context,
+        snackBarMessage: 'cURL copied (auth hidden)',
+      );
+    }
+  }
+
+  void _openDetailScreen() {
+    final httpData = _httpLogData;
+    if (httpData == null) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder:
+            (context) => TalkerThemeProvider(
+              theme: widget.theme,
+              child: HttpDetailScreen(
+                httpLogData: httpData,
+                advancedLog: _advancedLog,
+              ),
+            ),
+      ),
+    );
+  }
+
+  String _formatTime(DateTime time) {
+    return '${time.hour.toString().padLeft(2, '0')}:'
+        '${time.minute.toString().padLeft(2, '0')}:'
+        '${time.second.toString().padLeft(2, '0')}';
+  }
+}
+
+/// A coloured pill showing a label (method name or status code).
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
+/// Icon + text pair for metadata (response time, size).
+class _MetaLabel extends StatelessWidget {
+  const _MetaLabel({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: Colors.grey[400]),
+        const SizedBox(width: 4),
+        Text(text, style: TextStyle(color: Colors.grey[400], fontSize: 10)),
+      ],
+    );
+  }
+}
+
+/// Small grey tag showing the content type (JSON, HTML, etc.).
+class _ContentTypeBadge extends StatelessWidget {
+  const _ContentTypeBadge({required this.contentType});
+
+  final HttpBodyType contentType;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.grey[700],
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        contentType.name.toUpperCase(),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 8,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
+/// A small tappable chip with an icon and label (e.g. "cURL", "Detail").
+class _ActionChip extends StatelessWidget {
+  const _ActionChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -508,86 +554,120 @@ class _HttpLogCardState extends State<HttpLogCard> {
       ),
     );
   }
+}
 
-  void _onTap() {
-    if (widget.onTap != null) {
-      widget.onTap?.call();
-      return;
-    }
-    setState(() => _expanded = !_expanded);
-  }
+/// A code block with line numbers and an optional "truncated" hint.
+///
+/// Extracted so that `_buildResponseBodyPreview` only has to prepare the data
+/// and this widget handles all the rendering boilerplate.
+class _CodePreview extends StatelessWidget {
+  const _CodePreview({
+    required this.lines,
+    required this.codeColor,
+    this.isTruncated = false,
+    this.hiddenLineCount = 0,
+  });
 
-  void _copyCurl() {
-    String? curl;
+  final List<String> lines;
+  final Color codeColor;
+  final bool isTruncated;
+  final int hiddenLineCount;
 
-    if (_advancedLog != null) {
-      curl = _advancedLog!.curlCommandSafe;
-    } else if (_httpLogData?.requestOptions != null) {
-      curl = CurlGenerator.generateSafe(_httpLogData!.requestOptions!);
-    }
+  @override
+  Widget build(BuildContext context) {
+    // Width of the gutter (enough digits for the last line number).
+    final gutterWidth = lines.length.toString().length;
 
-    if (curl != null) {
-      Clipboard.setData(ClipboardData(text: curl));
-      _showSnackBar('cURL copied (auth hidden)');
-    }
-  }
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title row
+          Row(
+            children: [
+              Text(
+                'Response',
+                style: TextStyle(
+                  color: Colors.grey[400],
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              if (isTruncated)
+                Text(
+                  '$hiddenLineCount more lines...',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 10),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
 
-  void _openDetailScreen() {
-    final httpData = _httpLogData;
-    if (httpData == null) return;
+          // Line-numbered body
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Line numbers
+              SelectableText(
+                List.generate(
+                  lines.length,
+                  (i) => (i + 1).toString().padLeft(gutterWidth),
+                ).join('\n'),
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Vertical separator
+              Container(
+                width: 1,
+                color: Colors.grey[700],
+                margin: const EdgeInsets.only(right: 8),
+              ),
+              // Code
+              Expanded(
+                child: SelectableText(
+                  lines.join('\n'),
+                  style: TextStyle(
+                    color: codeColor,
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder:
-            (context) => TalkerThemeProvider(
-              theme: widget.theme,
-              child: HttpDetailScreen(
-                httpLogData: httpData,
-                advancedLog: _advancedLog,
+          // "Tap Detail" hint
+          if (isTruncated)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Tap "Detail" to view full response',
+                style: TextStyle(
+                  color: Colors.grey[500],
+                  fontSize: 10,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
             ),
+        ],
       ),
     );
   }
-
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-    );
-  }
-
-  String _formatTime(DateTime time) {
-    return '${time.hour.toString().padLeft(2, '0')}:'
-        '${time.minute.toString().padLeft(2, '0')}:'
-        '${time.second.toString().padLeft(2, '0')}';
-  }
 }
 
-/// Builder function type for HTTP log cards
-typedef HttpLogCardBuilder =
-    Widget Function(BuildContext context, TalkerData data);
-
-/// Returns true if the TalkerData is from the advanced dio logger
+/// Returns `true` if [data] is from [AdvancedDioLogger].
 bool isAdvancedHttpLog(TalkerData data) {
   return data is AdvancedDioLog;
-}
-
-/// Default builder for HTTP log cards that uses HttpLogCard for all logs.
-///
-/// Display limits are automatically sourced from the [AdvancedDioLoggerSettings]
-/// baked into each [AdvancedDioLog] at intercept time — no need to pass them
-/// separately here.
-Widget buildHttpLogCard(
-  BuildContext context,
-  TalkerData data, {
-  bool expanded = true,
-  TalkerScreenTheme theme = const TalkerScreenTheme(),
-  VoidCallback? onCopyTap,
-}) {
-  return HttpLogCard(
-    data: data,
-    expanded: expanded,
-    theme: theme,
-    onCopyTap: onCopyTap,
-  );
 }

@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:talker_dio_logger_plus/src/utils/clipboard_util.dart';
 
 import 'talker_theme_provider.dart';
 
@@ -275,11 +275,13 @@ class _SearchableJsonViewerState extends State<SearchableJsonViewer> {
                   final jsonString = const JsonEncoder.withIndent(
                     '  ',
                   ).convert(widget.data);
-                  Clipboard.setData(ClipboardData(text: jsonString));
-                  widget.onCopy?.call();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('JSON copied to clipboard')),
+
+                  ClipboardUtil.copy(
+                    jsonString,
+                    context: context,
+                    snackBarMessage: 'JSON copied to clipboard',
                   );
+                  widget.onCopy?.call();
                 },
                 tooltip: 'Copy JSON',
               ),

@@ -2,8 +2,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
-/// Content type enumeration for HTTP responses
-enum HttpContentType { json, html, xml, text, image, binary, file, unknown }
+import 'http_body_type.dart';
 
 /// Model class to hold detailed HTTP log data
 class HttpLogData {
@@ -19,7 +18,7 @@ class HttpLogData {
     this.statusMessage,
     this.responseTime,
     this.error,
-    this.contentType = HttpContentType.unknown,
+    this.contentType = HttpBodyType.unknown,
     this.contentLength,
     this.imageData,
     this.responseBody,
@@ -40,7 +39,7 @@ class HttpLogData {
   final String? statusMessage;
   final int? responseTime;
   final String? error;
-  final HttpContentType contentType;
+  final HttpBodyType contentType;
   final int? contentLength;
   final Uint8List? imageData;
   final dynamic responseBody;
@@ -59,20 +58,20 @@ class HttpLogData {
   final DioException? dioException;
 
   /// Returns true if response is an image
-  bool get isImage => contentType == HttpContentType.image;
+  bool get isImage => contentType == HttpBodyType.image;
 
   /// Returns true if response is HTML
-  bool get isHtml => contentType == HttpContentType.html;
+  bool get isHtml => contentType == HttpBodyType.html;
 
   /// Returns true if response is JSON
-  bool get isJson => contentType == HttpContentType.json;
+  bool get isJson => contentType == HttpBodyType.json;
 
   /// Returns true if response is text based
   bool get isTextBased => [
-    HttpContentType.json,
-    HttpContentType.html,
-    HttpContentType.xml,
-    HttpContentType.text,
+    HttpBodyType.json,
+    HttpBodyType.html,
+    HttpBodyType.xml,
+    HttpBodyType.text,
   ].contains(contentType);
 
   /// Calculate approximate size of the response
@@ -109,7 +108,7 @@ class HttpLogData {
     String? statusMessage,
     int? responseTime,
     String? error,
-    HttpContentType? contentType,
+    HttpBodyType? contentType,
     int? contentLength,
     Uint8List? imageData,
     RequestOptions? requestOptions,

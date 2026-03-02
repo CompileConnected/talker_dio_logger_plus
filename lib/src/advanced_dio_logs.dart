@@ -12,12 +12,16 @@ import 'package:talker_dio_logger_plus/src/utils/talker_compat.dart';
 
 import '../talker_dio_logger_plus.dart';
 
+/// JSON encoder with 2-space indentation, shared across this file.
 const _encoder = JsonEncoder.withIndent('  ');
 
-/// Type of HTTP log
+/// The kind of HTTP log entry.
 enum AdvancedDioLogType { request, response, error }
 
-/// Advanced HTTP Log that handles requests, responses, and errors in a single class.
+/// A single HTTP log entry displayed in the Talker console and UI.
+///
+/// Each instance is created by [AdvancedDioLogger] and carries all the
+/// information needed to render the log (method, URL, headers, body, etc.).
 class AdvancedDioLog extends TalkerLog {
   AdvancedDioLog(
     super.message, {
@@ -57,7 +61,7 @@ class AdvancedDioLog extends TalkerLog {
         : settings.logLevel;
   }
 
-  /// Get cURL command with hidden sensitive values
+  /// cURL command with sensitive header values masked.
   String? get curlCommandSafe {
     final options = httpLogData.requestOptions;
     if (options == null) return null;
@@ -68,16 +72,14 @@ class AdvancedDioLog extends TalkerLog {
     );
   }
 
-  /// Get full cURL command (with all values visible)
+  /// cURL command with all values visible (for debugging).
   String? get curlCommandFull {
     final options = httpLogData.requestOptions;
     if (options == null) return null;
     return CurlGenerator.generateFull(options);
   }
 
-  // Cache the generated text message — data is immutable after construction
-  // so there is no risk of stale content, and we avoid re-encoding large
-  // response bodies (potentially MBs of JSON) on every Talker history render.
+  /// Cached result so we don't re-encode large bodies on every render.
   String? _cachedTextMessage;
 
   @override
@@ -85,39 +87,40 @@ class AdvancedDioLog extends TalkerLog {
     TimeFormat timeFormat = TimeFormat.timeAndSeconds,
   }) {
     if (_cachedTextMessage != null) return _cachedTextMessage!;
+
     final buffer = StringBuffer('[$title] [${httpLogData.method}] $message');
 
     switch (type) {
       case AdvancedDioLogType.request:
-        _appendRequestDetails(buffer);
+        _writeRequestDetails(buffer);
         break;
       case AdvancedDioLogType.response:
-        _appendResponseDetails(buffer);
+        _writeResponseDetails(buffer);
         break;
       case AdvancedDioLogType.error:
-        _appendErrorDetails(buffer);
+        _writeErrorDetails(buffer);
         break;
     }
 
-    _appendRequestHeaders(buffer);
-    _appendRequestExtra(buffer);
+    _writeRequestHeaders(buffer);
+    _writeRequestExtra(buffer);
 
     _cachedTextMessage = buffer.toString();
     return _cachedTextMessage!;
   }
 
-  void _appendRequestDetails(StringBuffer buffer) {
+  void _writeRequestDetails(StringBuffer buffer) {
     if (settings.printRequestData) {
-      _appendData(
+      _writeBody(
         buffer,
         label: 'Data',
         data: httpLogData.requestBody,
-        contentType: HttpContentType.unknown,
+        contentType: HttpBodyType.unknown,
       );
     }
   }
 
-  void _appendResponseDetails(StringBuffer buffer) {
+  void _writeResponseDetails(StringBuffer buffer) {
     buffer.write('\nStatus: ${httpLogData.statusCode}');
 
     if (settings.printResponseTime && httpLogData.responseTime != null) {
@@ -136,7 +139,7 @@ class AdvancedDioLog extends TalkerLog {
     }
 
     if (settings.printResponseData) {
-      _appendData(
+      _writeBody(
         buffer,
         label: 'Data',
         data: httpLogData.responseBody,
@@ -147,11 +150,11 @@ class AdvancedDioLog extends TalkerLog {
     }
 
     if (settings.printResponseHeaders) {
-      _appendMap(buffer, 'Headers', httpLogData.responseHeaders);
+      _writeMap(buffer, 'Headers', httpLogData.responseHeaders);
     }
   }
 
-  void _appendErrorDetails(StringBuffer buffer) {
+  void _writeErrorDetails(StringBuffer buffer) {
     if (httpLogData.statusCode != null) {
       buffer.write('\nStatus: ${httpLogData.statusCode}');
     }
@@ -169,7 +172,7 @@ class AdvancedDioLog extends TalkerLog {
     }
 
     if (settings.printErrorData) {
-      _appendData(
+      _writeBody(
         buffer,
         label: 'Data',
         data: httpLogData.responseBody,
@@ -179,47 +182,78 @@ class AdvancedDioLog extends TalkerLog {
     }
 
     if (settings.printErrorHeaders) {
-      _appendMap(buffer, 'Headers', httpLogData.responseHeaders);
+      _writeMap(buffer, 'Headers', httpLogData.responseHeaders);
     }
   }
 
-  void _appendData(
+  /// Writes a body (request or response) into [buffer].
+  ///
+  /// [alreadyTruncated] means the data was already capped at storage time
+  /// so we can skip the expensive truncation step.
+  void _writeBody(
     StringBuffer buffer, {
     required String label,
     required dynamic data,
-    required HttpContentType contentType,
+    required HttpBodyType contentType,
     Response? response,
-
-    /// When true the caller guarantees [data] has already been truncated to
-    /// [DisplayLimit.maxBytes] at storage time, so we skip a second
-    /// [DataTruncator] pass (and the expensive [SizeCalculator] call it needs).
     bool alreadyTruncated = false,
   }) {
     final limit = settings.getDisplayLimit(contentType);
-    if (!limit.enablePreview) return;
 
-    // Image: body is null (stored in imageData), show size hint.
-    if (contentType == HttpContentType.image) {
-      buffer.write(
-        '\n[$label: Image Data - ${SizeCalculator.formatBytes(httpLogData.approximateResponseSize)}]',
-      );
-      if (httpLogData.approximateResponseSize > limit.maxBytes) {
-        buffer.write('\n[Too large for preview - tap to view]');
-      }
+    // Each content type has its own simple helper.
+    if (contentType == HttpBodyType.image) {
+      _writeImagePlaceholder(buffer, label, limit);
       return;
     }
 
-    // HTML: body is null (rendered by WebView), show hint.
-    if (contentType == HttpContentType.html) {
+    if (contentType == HttpBodyType.html) {
       buffer.write('\n[$label: HTML Content - tap to preview]');
       return;
     }
 
-    // Binary/unknown: body is a sentinel placeholder string or null.
     if (data == null) return;
 
-    // For already-truncated data (response/error body) skip the second
-    // DataTruncator pass — the stored copy is already within maxBytes.
+    if (data is FormData) {
+      buffer.write('\n$label: ${_formatFormData(data)}');
+      return;
+    }
+
+    // Text-based content (JSON, XML, plain text, etc.)
+    _writeTextBody(
+      buffer,
+      label: label,
+      data: data,
+      response: response,
+      alreadyTruncated: alreadyTruncated,
+      limit: limit,
+    );
+  }
+
+  /// Writes a size hint for image responses.
+  void _writeImagePlaceholder(
+    StringBuffer buffer,
+    String label,
+    DisplayLimit limit,
+  ) {
+    final size = httpLogData.approximateResponseSize;
+    buffer.write(
+      '\n[$label: Image Data - ${SizeCalculator.formatBytes(size)}]',
+    );
+    if (size > limit.maxBytes) {
+      buffer.write('\n[Too large for preview - tap to view]');
+    }
+  }
+
+  /// Writes text-based body data (JSON, XML, plain text).
+  void _writeTextBody(
+    StringBuffer buffer, {
+    required String label,
+    required dynamic data,
+    required DisplayLimit limit,
+    Response? response,
+    bool alreadyTruncated = false,
+  }) {
+    // Optionally truncate data that hasn't been capped yet.
     TruncationResult? truncationResult;
     final dynamic displayData;
     if (alreadyTruncated) {
@@ -233,10 +267,9 @@ class AdvancedDioLog extends TalkerLog {
       displayData = truncationResult?.data ?? data;
     }
 
+    // Use custom converter if provided; otherwise JSON-encode.
     String formatted;
-    if (displayData is FormData) {
-      formatted = _formatFormData(displayData);
-    } else if (response != null && settings.responseDataConverter != null) {
+    if (response != null && settings.responseDataConverter != null) {
       formatted = settings.responseDataConverter!(response);
     } else {
       try {
@@ -247,6 +280,7 @@ class AdvancedDioLog extends TalkerLog {
     }
 
     buffer.write('\n$label: $formatted');
+
     if (truncationResult != null) {
       buffer.write(
         '\n[Truncated: ${SizeCalculator.formatBytes(truncationResult.originalSize)} - tap for full content]',
@@ -254,17 +288,17 @@ class AdvancedDioLog extends TalkerLog {
     }
   }
 
-  void _appendRequestHeaders(StringBuffer buffer) {
+  void _writeRequestHeaders(StringBuffer buffer) {
     if (!settings.printRequestHeaders) return;
     final headers = httpLogData.requestHeaders;
     if (headers == null || headers.isEmpty) return;
 
     final label =
         type == AdvancedDioLogType.request ? 'Headers' : 'Request Headers';
-    _appendMap(buffer, label, headers);
+    _writeMap(buffer, label, headers);
   }
 
-  void _appendRequestExtra(StringBuffer buffer) {
+  void _writeRequestExtra(StringBuffer buffer) {
     if (!settings.printRequestExtra) return;
     final options = httpLogData.requestOptions;
     if (options == null || options.extra.isEmpty) return;
@@ -276,10 +310,10 @@ class AdvancedDioLog extends TalkerLog {
 
     final label =
         type == AdvancedDioLogType.request ? 'Extra' : 'Request Extra';
-    _appendMap(buffer, label, extra);
+    _writeMap(buffer, label, extra);
   }
 
-  void _appendMap(
+  void _writeMap(
     StringBuffer buffer,
     String label,
     Map<dynamic, dynamic>? map,
@@ -303,177 +337,190 @@ class AdvancedDioLog extends TalkerLog {
   });
 }
 
-/// Get response time from request options
-int? _getResponseTime(RequestOptions options) {
-  final triggerTime = options.extra['_talker_dio_logger_ts_'];
-  return triggerTime is int
-      ? DateTime.now().millisecondsSinceEpoch - triggerTime
-      : null;
-}
+/// Creates [HttpLogData] instances from Dio's request/response/error objects.
+///
+/// All methods are static so they can be called without instantiation.
+/// This class groups the factory logic in one place for discoverability.
+class HttpLogDataFactory {
+  // Private constructor — this class is not meant to be instantiated.
+  HttpLogDataFactory._();
 
-/// Create base HttpLogData with common fields
-HttpLogData _createBaseLogData(
-  RequestOptions options,
-  AdvancedDioLoggerSettings settings,
-) {
-  final headers = Map<String, dynamic>.from(options.headers);
-  HeaderMasker.maskFromSettings(headers, settings);
+  /// Build log data from a [RequestOptions] (outgoing request).
+  static HttpLogData fromRequest(
+    RequestOptions options,
+    AdvancedDioLoggerSettings settings,
+  ) {
+    return _buildBase(options, settings);
+  }
 
-  return HttpLogData(
-    method: options.method,
-    uri: options.uri,
-    timestamp: DateTime.now(),
-    requestHeaders: headers,
-    requestBody: options.data,
-    requestQueryParams:
-        options.uri.queryParameters.isNotEmpty
-            ? options.uri.queryParameters
-            : null,
-    requestOptions: options,
-  );
-}
+  /// Build log data from a successful [Response].
+  static HttpLogData fromResponse(
+    Response response,
+    AdvancedDioLoggerSettings settings,
+  ) {
+    final contentType = ContentTypeDetector.detectFromResponse(response);
+    final contentLength = _readContentLength(response);
+    final body = _PreparedBody.fromData(response.data, contentType, settings);
 
-/// Create HttpLogData from request options
-HttpLogData createRequestLogData(
-  RequestOptions options,
-  AdvancedDioLoggerSettings settings,
-) => _createBaseLogData(options, settings);
+    return _buildBase(response.requestOptions, settings).copyWith(
+      responseHeaders: response.headers.map,
+      responseBody: body.responseBody,
+      htmlContent: body.htmlContent,
+      statusCode: response.statusCode,
+      statusMessage: response.statusMessage,
+      responseTime: _calculateResponseTime(response.requestOptions),
+      contentType: contentType,
+      contentLength: contentLength,
+      imageData: _extractImageBytes(response.data, contentType),
+      response: response,
+    );
+  }
 
-/// Create HttpLogData from response
-HttpLogData createResponseLogData(
-  Response response,
-  AdvancedDioLoggerSettings settings,
-) {
-  final contentType = ContentTypeDetector.detectFromResponse(response);
-  final contentLength = _getContentLength(response);
-  final prepared = _prepareResponseBody(response.data, contentType, settings);
+  /// Build log data from a [DioException].
+  static HttpLogData fromError(
+    DioException error,
+    AdvancedDioLoggerSettings settings,
+  ) {
+    final response = error.response;
 
-  return _createBaseLogData(response.requestOptions, settings).copyWith(
-    responseHeaders: response.headers.map,
-    responseBody: prepared.responseBody,
-    htmlContent: prepared.htmlContent,
-    statusCode: response.statusCode,
-    statusMessage: response.statusMessage,
-    responseTime: _getResponseTime(response.requestOptions),
-    contentType: contentType,
-    contentLength: contentLength,
-    imageData:
-        (contentType == HttpContentType.image && response.data is List<int>)
-            ? Uint8List.fromList(response.data as List<int>)
-            : null,
-    response: response,
-  );
-}
-
-/// Create HttpLogData from error
-HttpLogData createErrorLogData(
-  DioException error,
-  AdvancedDioLoggerSettings settings,
-) {
-  final response = error.response;
-  HttpContentType contentType = HttpContentType.unknown;
-  int? contentLength;
-  Uint8List? imageData;
-  _PreparedBody prepared = (responseBody: null, htmlContent: null);
-
-  if (response != null) {
-    contentType = ContentTypeDetector.detectFromResponse(response);
-    contentLength = _getContentLength(response);
-    prepared = _prepareResponseBody(response.data, contentType, settings);
-
-    if (contentType == HttpContentType.image && response.data is List<int>) {
-      imageData = Uint8List.fromList(response.data as List<int>);
+    // When there's no response (e.g. network error), most fields stay null.
+    if (response == null) {
+      return _buildBase(error.requestOptions, settings).copyWith(
+        responseTime: _calculateResponseTime(error.requestOptions),
+        error: error.message,
+        dioException: error,
+      );
     }
+
+    final contentType = ContentTypeDetector.detectFromResponse(response);
+    final contentLength = _readContentLength(response);
+    final body = _PreparedBody.fromData(response.data, contentType, settings);
+
+    return _buildBase(error.requestOptions, settings).copyWith(
+      responseHeaders: response.headers.map,
+      responseBody: body.responseBody,
+      htmlContent: body.htmlContent,
+      statusCode: response.statusCode,
+      statusMessage: response.statusMessage,
+      responseTime: _calculateResponseTime(error.requestOptions),
+      error: error.message,
+      contentType: contentType,
+      contentLength: contentLength,
+      imageData: _extractImageBytes(response.data, contentType),
+      response: response,
+      dioException: error,
+    );
   }
 
-  return _createBaseLogData(error.requestOptions, settings).copyWith(
-    responseHeaders: response?.headers.map,
-    responseBody: prepared.responseBody,
-    htmlContent: prepared.htmlContent,
-    statusCode: response?.statusCode,
-    statusMessage: response?.statusMessage,
-    responseTime: _getResponseTime(error.requestOptions),
-    error: error.message,
-    contentType: contentType,
-    contentLength: contentLength,
-    imageData: imageData,
-    response: response,
-    dioException: error,
-  );
-}
+  /// Shared logic for every log entry: masks headers, captures query params.
+  static HttpLogData _buildBase(
+    RequestOptions options,
+    AdvancedDioLoggerSettings settings,
+  ) {
+    final headers = Map<String, dynamic>.from(options.headers);
+    HeaderMasker.maskFromSettings(headers, settings);
 
-/// Get content length from response
-int? _getContentLength(Response response) {
-  final header = response.headers.value('content-length');
-  return header != null ? int.tryParse(header) : null;
-}
-
-/// Result of [_prepareResponseBody] — holds what should be stored in each
-/// dedicated field of [HttpLogData].
-typedef _PreparedBody = ({dynamic responseBody, String? htmlContent});
-
-/// Prepare the response body for storage in [HttpLogData] at intercept time.
-///
-/// ### Why this matters for memory
-/// Dio may return a 20 MB+ response body (a large `Map` or `String`). Without
-/// this step, every `HttpLogData` in Talker's history would hold the full
-/// payload indefinitely — potentially multiplied by the number of retained log
-/// entries. By capping the stored copy here we ensure:
-///
-/// - `HttpLogData.responseBody` is already at most `DisplayLimit.maxBytes` in
-///   size, so both the console formatter (`generateTextMessage`) and the UI
-///   preview work on a small, already-truncated object.
-/// - `generateTextMessage()` no longer needs to re-encode the full body on
-///   every call — the cached string is built from the truncated data.
-///
-/// ### How each content type is handled
-/// - **Image** — raw bytes are kept in `imageData` (Uint8List); `responseBody`
-///   is set to null to avoid a duplicate copy.
-/// - **HTML** — the raw string is stored in `htmlContent` (capped to
-///   `DisplayLimit.maxBytes`) so [WebViewPreview] can render it; `responseBody`
-///   is null.
-/// - **Binary / unknown** — replaced with a small human-readable sentinel
-///   string (e.g. `"[Binary data — 4.20 MB]"`) in `responseBody`.
-/// - **Text-based (json, xml, text, file)** — truncated via [DataTruncator]
-///   to `DisplayLimit.maxBytes` / `maxLines` and stored in `responseBody`.
-_PreparedBody _prepareResponseBody(
-  dynamic data,
-  HttpContentType contentType,
-  AdvancedDioLoggerSettings settings,
-) {
-  if (data == null) return (responseBody: null, htmlContent: null);
-
-  // Images are stored separately as imageData (Uint8List); no duplicate copy.
-  if (contentType == HttpContentType.image) {
-    return (responseBody: null, htmlContent: null);
+    return HttpLogData(
+      method: options.method,
+      uri: options.uri,
+      timestamp: DateTime.now(),
+      requestHeaders: headers,
+      requestBody: options.data,
+      requestQueryParams:
+          options.uri.queryParameters.isNotEmpty
+              ? options.uri.queryParameters
+              : null,
+      requestOptions: options,
+    );
   }
 
-  // HTML is rendered by WebView — store in htmlContent, not responseBody,
-  // so the two in-memory copies don't coexist.
-  if (contentType == HttpContentType.html) {
-    final limit = settings.getDisplayLimit(contentType);
+  /// Reads the `content-length` header from a [Response].
+  static int? _readContentLength(Response response) {
+    final header = response.headers.value('content-length');
+    return header != null ? int.tryParse(header) : null;
+  }
+
+  /// Calculates how many milliseconds elapsed since the request was sent.
+  static int? _calculateResponseTime(RequestOptions options) {
+    final startMs = options.extra['_talker_dio_logger_ts_'];
+    if (startMs is! int) return null;
+    return DateTime.now().millisecondsSinceEpoch - startMs;
+  }
+
+  /// Extracts raw image bytes when the response is an image.
+  static Uint8List? _extractImageBytes(dynamic data, HttpBodyType type) {
+    if (type == HttpBodyType.image && data is List<int>) {
+      return Uint8List.fromList(data);
+    }
+    return null;
+  }
+}
+
+/// Holds the processed response body ready for storage in [HttpLogData].
+///
+/// Only one of [responseBody] or [htmlContent] is set at a time:
+/// - **JSON / XML / text**: stored in [responseBody] (truncated to fit).
+/// - **HTML**: stored in [htmlContent] for WebView rendering.
+/// - **Image**: both are null (raw bytes go into `HttpLogData.imageData`).
+/// - **Binary**: [responseBody] contains a small placeholder string.
+class _PreparedBody {
+  const _PreparedBody({this.responseBody, this.htmlContent});
+
+  /// The body to store in `HttpLogData.responseBody`.
+  final dynamic responseBody;
+
+  /// Raw HTML string to store in `HttpLogData.htmlContent`.
+  final String? htmlContent;
+
+  /// Pick the right preparation strategy based on [contentType].
+  factory _PreparedBody.fromData(
+    dynamic data,
+    HttpBodyType contentType,
+    AdvancedDioLoggerSettings settings,
+  ) {
+    if (data == null) return const _PreparedBody();
+
+    return switch (contentType) {
+      HttpBodyType.image => const _PreparedBody(),
+      HttpBodyType.html => _prepareHtml(data, settings),
+      HttpBodyType.unknown => _prepareBinary(data),
+      _ => _prepareText(data, contentType, settings),
+    };
+  }
+
+  /// HTML: cap to maxBytes, store in [htmlContent] for WebView.
+  static _PreparedBody _prepareHtml(
+    dynamic data,
+    AdvancedDioLoggerSettings settings,
+  ) {
+    final limit = settings.getDisplayLimit(HttpBodyType.html);
     final raw = data.toString();
     final html =
         raw.length > limit.maxBytes ? raw.substring(0, limit.maxBytes) : raw;
-    return (responseBody: null, htmlContent: html);
+    return _PreparedBody(htmlContent: html);
   }
 
-  // Binary / unknown: replace with a small placeholder sentinel.
-  if (contentType == HttpContentType.binary ||
-      contentType == HttpContentType.unknown) {
+  /// Binary / unknown: replace with a small human-readable placeholder.
+  static _PreparedBody _prepareBinary(dynamic data) {
     final size = SizeCalculator.calculateSize(data);
-    final sentinel =
-        size > 0 ? '[Binary data — ${SizeCalculator.formatBytes(size)}]' : null;
-    return (responseBody: sentinel, htmlContent: null);
+    if (size <= 0) return const _PreparedBody();
+    return _PreparedBody(
+      responseBody: '[Binary data — ${SizeCalculator.formatBytes(size)}]',
+    );
   }
 
-  // Text-based types (json, xml, text, file): truncate to DisplayLimit.
-  final limit = settings.getDisplayLimit(contentType);
-  final result = DataTruncator.truncate(
-    data,
-    threshold: limit.maxBytes,
-    maxLines: limit.maxLines,
-  );
-
-  return (responseBody: result?.data ?? data, htmlContent: null);
+  /// Text-based (JSON, XML, plain text, file): truncate to [DisplayLimit].
+  static _PreparedBody _prepareText(
+    dynamic data,
+    HttpBodyType contentType,
+    AdvancedDioLoggerSettings settings,
+  ) {
+    final limit = settings.getDisplayLimit(contentType);
+    final result = DataTruncator.truncate(
+      data,
+      threshold: limit.maxBytes,
+      maxLines: limit.maxLines,
+    );
+    return _PreparedBody(responseBody: result?.data ?? data);
+  }
 }

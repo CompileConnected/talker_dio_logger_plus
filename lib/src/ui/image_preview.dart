@@ -2,9 +2,9 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:talker_dio_logger_plus/src/ui/talker_theme_provider.dart';
-import 'package:talker_dio_logger_plus/src/utils/file_saver.dart';
 import 'package:talker_dio_logger_plus/src/utils/file_saver_interface.dart';
 import 'package:talker_dio_logger_plus/src/utils/size_calculator.dart';
+import 'package:talker_dio_logger_plus/src/utils/snackbar_util.dart';
 
 /// Widget to display image preview
 class ImagePreview extends StatelessWidget {
@@ -138,11 +138,7 @@ class FullScreenImageViewer extends StatelessWidget {
   final Uint8List imageData;
   final String? title;
   final String? mimeType;
-
-  /// Custom file saver. If not provided, uses [DefaultFileSaver].
   final FileSaverInterface? fileSaver;
-
-  FileSaverInterface get _fileSaver => fileSaver ?? const DefaultFileSaver();
 
   @override
   Widget build(BuildContext context) {
@@ -211,32 +207,40 @@ class FullScreenImageViewer extends StatelessWidget {
   }
 
   Future<void> _saveImage(BuildContext context) async {
+    final fs = fileSaver;
+    if (fs == null) {
+      SnackBarUtil.show(
+        context,
+        'File saver is not configured \nPlease configure it first on AdvanceDioSettings',
+      );
+      return;
+    }
     final ext = mimeType != null ? _getExtension(mimeType!) : '.png';
     final filename = 'image_${DateTime.now().millisecondsSinceEpoch}$ext';
 
-    final path = await _fileSaver.saveToFile(
-      filename: filename,
-      data: imageData,
-    );
+    final path = await fs.saveToFile(filename: filename, data: imageData);
 
     if (path != null && context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Image saved to $path')));
+      SnackBarUtil.show(context, 'Image saved to $path');
     }
   }
 
   Future<void> _shareImage(BuildContext context) async {
+    final fs = fileSaver;
+    if (fs == null) {
+      SnackBarUtil.show(
+        context,
+        'File saver is not configured \nPlease configure it first on AdvanceDioSettings',
+      );
+      return;
+    }
     final ext = mimeType != null ? _getExtension(mimeType!) : '.png';
     final filename = 'image_${DateTime.now().millisecondsSinceEpoch}$ext';
 
-    final path = await _fileSaver.saveToFile(
-      filename: filename,
-      data: imageData,
-    );
+    final path = await fs.saveToFile(filename: filename, data: imageData);
 
     if (path != null) {
-      await _fileSaver.shareFile(filepath: path, subject: 'Shared Image');
+      await fs.shareFile(filepath: path, subject: 'Shared Image');
     }
   }
 

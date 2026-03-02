@@ -5,7 +5,12 @@
 /// Fields:
 /// - [maxBytes]: Maximum bytes to show inline before truncation
 /// - [maxLines]: Maximum lines to display (for text/json/xml)
-/// - [enablePreview]: Whether to show inline preview (for image/html)
+/// - [enablePreview]: Whether to render this content type as a visual preview
+///   in the UI card and detail screen. When `false`, the card and detail screen
+///   will skip rendering the body/image/html widget for this content type and
+///   show a "preview disabled" notice instead. This has **no effect** on
+///   console/text log output — use the `printResponseData` / `printRequestData`
+///   settings on [AdvancedDioLoggerSettings] to suppress console output.
 ///
 /// This is used by [DisplayLimitRegistry] to map response types to display rules.
 class DisplayLimit {

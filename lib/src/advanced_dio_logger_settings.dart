@@ -1,6 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:talker_dio_logger_plus/src/models/display_limit_registry.dart';
-import 'package:talker_dio_logger_plus/src/models/http_log_data.dart';
+import 'package:talker_dio_logger_plus/src/utils/file_saver.dart';
 import 'package:talker_dio_logger_plus/src/utils/talker_compat.dart';
 
 import '../talker_dio_logger_plus.dart';
@@ -70,7 +69,7 @@ class AdvancedDioLoggerSettings {
     this.printErrorMessage = true,
     this.hiddenHeaders = AdvancedDioLoggerConstants.defaultHiddenHeaders,
     this.hideAuthorizationValue = true,
-    DisplayLimitRegistry? displayLimitRegistry,
+    DisplayLimitRegistry? cardDisplayLimit,
     this.requestPen,
     this.responsePen,
     this.errorPen,
@@ -79,14 +78,9 @@ class AdvancedDioLoggerSettings {
     this.errorFilter,
     this.responseDataConverter,
     this.enableCurlGeneration = true,
-    this.enableJsonViewer = true,
-    this.enableImagePreview = true,
-    this.enableHtmlPreview = true,
-    this.enableDownload = true,
-    this.fileSaver,
+    this.fileSaver = const DefaultFileSaver(),
     this.jsonSoftWrapTextValueAtWidth,
-  }) : displayLimitRegistry =
-           displayLimitRegistry ?? DisplayLimitRegistry.defaults;
+  }) : displayLimitRegistry = cardDisplayLimit ?? DisplayLimitRegistry.defaults;
 
   /// Enable/disable the logger
   ///
@@ -152,7 +146,7 @@ class AdvancedDioLoggerSettings {
 
   /// Display limit registry for per-content-type configuration.
   ///
-  /// Maps response types (JSON, image, text, HTML, XML, file, unknown) to their
+  /// Maps response types (JSON, image, text, HTML, XML, unknown) to their
   /// display limits. Provides sensible defaults and allows per-type overrides.
   ///
   /// See [DisplayLimitRegistry] and [DisplayLimit] for available options.
@@ -162,7 +156,7 @@ class AdvancedDioLoggerSettings {
   ///
   /// Uses the registry to respect per-content-type configuration.
   /// Falls back to unknown type limits if type is not explicitly configured.
-  DisplayLimit getDisplayLimit(HttpContentType contentType) =>
+  DisplayLimit getDisplayLimit(HttpBodyType contentType) =>
       displayLimitRegistry.get(contentType);
 
   /// Width at which to soft wrap string values in JSON viewer (in logical pixels)
@@ -223,18 +217,6 @@ class AdvancedDioLoggerSettings {
   /// When enabled, users can copy requests as cURL commands.
   final bool enableCurlGeneration;
 
-  /// Enable interactive JSON viewer in detail view
-  final bool enableJsonViewer;
-
-  /// Enable image preview for image responses
-  final bool enableImagePreview;
-
-  /// Enable HTML preview for HTML responses
-  final bool enableHtmlPreview;
-
-  /// Enable download/share functionality
-  final bool enableDownload;
-
   /// Custom file saver implementation
   ///
   /// If not provided, uses [DefaultFileSaver] which requires
@@ -243,14 +225,9 @@ class AdvancedDioLoggerSettings {
   /// Provide your own implementation of [FileSaverInterface] to:
   /// - Use different file storage/sharing mechanisms
   /// - Avoid including the default dependencies
-  /// - Use [NoOpFileSaver] to disable file operations entirely
   ///
   /// Example:
   /// ```dart
-  /// // Disable file saving
-  /// settings: AdvancedDioLoggerSettings(
-  ///   fileSaver: const NoOpFileSaver(),
-  /// )
   ///
   /// // Custom implementation
   /// settings: AdvancedDioLoggerSettings(
@@ -285,10 +262,6 @@ class AdvancedDioLoggerSettings {
     bool Function(DioException exception)? errorFilter,
     String Function(Response response)? responseDataConverter,
     bool? enableCurlGeneration,
-    bool? enableJsonViewer,
-    bool? enableImagePreview,
-    bool? enableHtmlPreview,
-    bool? enableDownload,
     FileSaverInterface? fileSaver,
   }) {
     return AdvancedDioLoggerSettings(
@@ -307,7 +280,7 @@ class AdvancedDioLoggerSettings {
       hiddenHeaders: hiddenHeaders ?? this.hiddenHeaders,
       hideAuthorizationValue:
           hideAuthorizationValue ?? this.hideAuthorizationValue,
-      displayLimitRegistry: displayLimitRegistry ?? this.displayLimitRegistry,
+      cardDisplayLimit: displayLimitRegistry ?? this.displayLimitRegistry,
       jsonSoftWrapTextValueAtWidth:
           jsonSoftWrapTextValueAtWidth ?? this.jsonSoftWrapTextValueAtWidth,
       requestPen: requestPen ?? this.requestPen,
@@ -319,10 +292,6 @@ class AdvancedDioLoggerSettings {
       responseDataConverter:
           responseDataConverter ?? this.responseDataConverter,
       enableCurlGeneration: enableCurlGeneration ?? this.enableCurlGeneration,
-      enableJsonViewer: enableJsonViewer ?? this.enableJsonViewer,
-      enableImagePreview: enableImagePreview ?? this.enableImagePreview,
-      enableHtmlPreview: enableHtmlPreview ?? this.enableHtmlPreview,
-      enableDownload: enableDownload ?? this.enableDownload,
       fileSaver: fileSaver ?? this.fileSaver,
     );
   }
