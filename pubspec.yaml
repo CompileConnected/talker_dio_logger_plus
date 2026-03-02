@@ -20,10 +20,10 @@ dependencies:
   flutter:
     sdk: flutter
   dio: ^5.4.0
-  talker: ">=4.5.0"
-  talker_flutter: ">=4.5.0"
+  talker: ">=4.5.0 <6.0.0"
+  talker_flutter: ">=4.5.0 <6.0.0"
   path_provider: ^2.1.0
-  share_plus: ">=10.1.4"
+  share_plus: ">=10.1.4 <13.0.0"
   archive: ^4.0.2
   mime: ">=1.0.4 <3.0.0"
   flutter_inappwebview: ^6.1.5
