@@ -2,6 +2,8 @@ library;
 
 export 'src/advanced_dio_logger.dart';
 export 'src/advanced_dio_logger_settings.dart';
+export 'src/models/display_limit_registry.dart';
+export 'src/models/response_display_limit.dart';
 export 'src/ui/http_detail_screen.dart';
 export 'src/ui/http_log_card.dart' show HttpLogCard, isAdvancedHttpLog;
 export 'src/ui/talker_theme_provider.dart';

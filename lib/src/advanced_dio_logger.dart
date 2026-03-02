@@ -14,11 +14,9 @@ import 'package:talker_dio_logger_plus/src/utils/talker_compat.dart';
 /// - Large data truncation and download
 /// - Response time tracking
 class AdvancedDioLogger extends Interceptor {
-  AdvancedDioLogger({
-    Talker? talker,
-    this.settings = const AdvancedDioLoggerSettings(),
-  }) {
+  AdvancedDioLogger({Talker? talker, AdvancedDioLoggerSettings? settings}) {
     _talker = talker ?? Talker();
+    this.settings = settings ?? AdvancedDioLoggerSettings();
     // Register HTTP log keys for filtering (version-compatible)
     _talker.registerHttpLogKeys();
   }
@@ -29,7 +27,7 @@ class AdvancedDioLogger extends Interceptor {
   late Talker _talker;
 
   /// Logger settings
-  AdvancedDioLoggerSettings settings;
+  late AdvancedDioLoggerSettings settings;
 
   /// Get the Talker instance
   Talker get talker => _talker;

@@ -18,7 +18,7 @@ import 'package:talker/talker.dart';
 
 // Re-export all commonly used Talker types
 export 'package:talker/talker.dart'
-    show Talker, TalkerLog, TalkerData, AnsiPen, LogLevel, TimeFormat;
+    show Talker, TalkerLog, AnsiPen, LogLevel, TimeFormat;
 
 /// Cached result of Talker version detection
 bool? _isTalker5OrHigher;
@@ -88,21 +88,6 @@ extension TalkerCompat on Talker {
   }
 }
 
-/// Mixin providing common log key functionality
-///
-/// Use this mixin in custom TalkerLog subclasses to get consistent
-/// key handling across Talker versions.
-mixin HttpLogKeyMixin {
-  /// Get the appropriate key for request logs
-  String get requestKey => TalkerHttpKeys.httpRequest;
-
-  /// Get the appropriate key for response logs
-  String get responseKey => TalkerHttpKeys.httpResponse;
-
-  /// Get the appropriate key for error logs
-  String get errorKey => TalkerHttpKeys.httpError;
-}
-
 /// Default AnsiPen configurations for HTTP logs
 ///
 /// Provides consistent styling across the application and
@@ -137,19 +122,4 @@ abstract class TalkerHttpPens {
     if (statusCode >= 400 && statusCode < 500) return clientError;
     return serverError;
   }
-}
-
-/// Helper to check if a TalkerData represents an HTTP log
-extension TalkerDataHttpExt on TalkerData {
-  /// Check if this log is an HTTP request
-  bool get isHttpRequest => key == TalkerHttpKeys.httpRequest;
-
-  /// Check if this log is an HTTP response
-  bool get isHttpResponse => key == TalkerHttpKeys.httpResponse;
-
-  /// Check if this log is an HTTP error
-  bool get isHttpError => key == TalkerHttpKeys.httpError;
-
-  /// Check if this log is any HTTP-related log
-  bool get isHttpLog => isHttpRequest || isHttpResponse || isHttpError;
 }

@@ -1,39 +1,15 @@
 import 'package:dio/dio.dart';
-import 'package:talker_dio_logger_plus/src/utils/file_saver_interface.dart';
+import 'package:talker_dio_logger_plus/src/models/display_limit_registry.dart';
+import 'package:talker_dio_logger_plus/src/models/http_log_data.dart';
 import 'package:talker_dio_logger_plus/src/utils/talker_compat.dart';
+
+import '../talker_dio_logger_plus.dart';
 
 /// Constants for the advanced Dio logger
 ///
 /// Why centralized constants: Makes configuration easier to understand
 /// and prevents magic numbers throughout the codebase.
 class AdvancedDioLoggerConstants {
-  /// Default truncation threshold (100KB)
-  ///
-  /// Why 100KB: Balances readability with performance. Most API responses
-  /// that developers need to debug are under this threshold. Larger
-  /// responses typically indicate file downloads or malformed data.
-  static const int defaultTruncateThreshold = 100 * 1024;
-
-  /// Default maximum display size (1MB)
-  ///
-  /// Why 1MB: Prevents memory issues when rendering large responses.
-  /// Responses larger than this are typically binary data that shouldn't
-  /// be displayed as text anyway.
-  static const int defaultMaxDisplaySize = 1024 * 1024;
-
-  /// Default image preview threshold (500KB)
-  ///
-  /// Why 500KB: Images under this size can be decoded and displayed
-  /// inline without noticeable lag. Larger images should be viewed
-  /// in a separate screen with proper memory management.
-  static const int defaultImagePreviewThreshold = 500 * 1024;
-
-  /// Default max inline JSON lines
-  ///
-  /// Why 20 lines: Provides enough context to understand the response
-  /// without overwhelming the log list. Users can tap for full view.
-  static const int defaultMaxInlineJsonLines = 20;
-
   /// Default width for soft wrapping string values in JSON viewer (in logical pixels)
   ///
   /// When set, long string values in the JSON viewer will be soft wrapped
@@ -79,7 +55,7 @@ class AdvancedDioLoggerConstants {
 /// - Adding custom sensitive headers to `hiddenHeaders`
 /// - Using `requestFilter` to exclude sensitive endpoints
 class AdvancedDioLoggerSettings {
-  const AdvancedDioLoggerSettings({
+  AdvancedDioLoggerSettings({
     this.enabled = true,
     this.logLevel = LogLevel.debug,
     this.printRequestData = true,
@@ -94,15 +70,7 @@ class AdvancedDioLoggerSettings {
     this.printErrorMessage = true,
     this.hiddenHeaders = AdvancedDioLoggerConstants.defaultHiddenHeaders,
     this.hideAuthorizationValue = true,
-    this.truncateThreshold =
-        AdvancedDioLoggerConstants.defaultTruncateThreshold,
-    this.maxDisplaySize = AdvancedDioLoggerConstants.defaultMaxDisplaySize,
-    this.imagePreviewThreshold =
-        AdvancedDioLoggerConstants.defaultImagePreviewThreshold,
-    this.maxInlineJsonLines =
-        AdvancedDioLoggerConstants.defaultMaxInlineJsonLines,
-    this.jsonSoftWrapTextValueAtWidth =
-        AdvancedDioLoggerConstants.defaultJsonSoftWrapTextValueAtWidth,
+    DisplayLimitRegistry? displayLimitRegistry,
     this.requestPen,
     this.responsePen,
     this.errorPen,
@@ -116,14 +84,16 @@ class AdvancedDioLoggerSettings {
     this.enableHtmlPreview = true,
     this.enableDownload = true,
     this.fileSaver,
-  });
+    this.jsonSoftWrapTextValueAtWidth,
+  }) : displayLimitRegistry =
+           displayLimitRegistry ?? DisplayLimitRegistry.defaults;
 
   /// Create production-safe settings with minimal logging
   ///
   /// Why: In production, you typically want less verbose logging
   /// with maximum security to prevent credential exposure.
   factory AdvancedDioLoggerSettings.production() {
-    return const AdvancedDioLoggerSettings(
+    return AdvancedDioLoggerSettings(
       printRequestData: false,
       printRequestHeaders: false,
       printResponseData: false,
@@ -138,7 +108,7 @@ class AdvancedDioLoggerSettings {
   /// Why: During development, you want all available information
   /// to debug issues effectively.
   factory AdvancedDioLoggerSettings.debug() {
-    return const AdvancedDioLoggerSettings(
+    return AdvancedDioLoggerSettings(
       printRequestData: true,
       printRequestHeaders: true,
       printRequestExtra: true,
@@ -211,25 +181,20 @@ class AdvancedDioLoggerSettings {
   /// Highly recommended to keep enabled in production.
   final bool hideAuthorizationValue;
 
-  /// Data size threshold for truncation (in bytes)
+  /// Display limit registry for per-content-type configuration.
   ///
-  /// Responses larger than this will be truncated in the log list
-  /// but full content is available in the detail view.
-  final int truncateThreshold;
-
-  /// Maximum data size to display (in bytes)
+  /// Maps response types (JSON, image, text, HTML, XML, file, unknown) to their
+  /// display limits. Provides sensible defaults and allows per-type overrides.
   ///
-  /// Data larger than this requires download to view.
-  final int maxDisplaySize;
+  /// See [DisplayLimitRegistry] and [ResponseDisplayLimit] for available options.
+  final DisplayLimitRegistry displayLimitRegistry;
 
-  /// Image size threshold for inline preview (in bytes)
+  /// Get display limit for a specific content type.
   ///
-  /// Images smaller than this show inline; larger images
-  /// require tapping to view.
-  final int imagePreviewThreshold;
-
-  /// Maximum JSON lines to show inline
-  final int maxInlineJsonLines;
+  /// Uses the registry to respect per-content-type configuration.
+  /// Falls back to unknown type limits if type is not explicitly configured.
+  ResponseDisplayLimit getDisplayLimit(HttpContentType contentType) =>
+      displayLimitRegistry.get(contentType);
 
   /// Width at which to soft wrap string values in JSON viewer (in logical pixels)
   ///
@@ -341,10 +306,7 @@ class AdvancedDioLoggerSettings {
     bool? printErrorMessage,
     Set<String>? hiddenHeaders,
     bool? hideAuthorizationValue,
-    int? truncateThreshold,
-    int? maxDisplaySize,
-    int? imagePreviewThreshold,
-    int? maxInlineJsonLines,
+    DisplayLimitRegistry? displayLimitRegistry,
     double? jsonSoftWrapTextValueAtWidth,
     AnsiPen? requestPen,
     AnsiPen? responsePen,
@@ -376,11 +338,7 @@ class AdvancedDioLoggerSettings {
       hiddenHeaders: hiddenHeaders ?? this.hiddenHeaders,
       hideAuthorizationValue:
           hideAuthorizationValue ?? this.hideAuthorizationValue,
-      truncateThreshold: truncateThreshold ?? this.truncateThreshold,
-      maxDisplaySize: maxDisplaySize ?? this.maxDisplaySize,
-      imagePreviewThreshold:
-          imagePreviewThreshold ?? this.imagePreviewThreshold,
-      maxInlineJsonLines: maxInlineJsonLines ?? this.maxInlineJsonLines,
+      displayLimitRegistry: displayLimitRegistry ?? this.displayLimitRegistry,
       jsonSoftWrapTextValueAtWidth:
           jsonSoftWrapTextValueAtWidth ?? this.jsonSoftWrapTextValueAtWidth,
       requestPen: requestPen ?? this.requestPen,

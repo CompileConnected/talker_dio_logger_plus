@@ -9,6 +9,7 @@ enum HttpContentType {
   text,
   image,
   binary,
+  file,
   unknown,
 }
 

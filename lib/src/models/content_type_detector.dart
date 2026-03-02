@@ -159,6 +159,8 @@ class ContentTypeDetector {
         return '.bin'; // Will be overridden by actual mime type
       case HttpContentType.binary:
         return '.bin';
+      case HttpContentType.file:
+        return '.bin';
       case HttpContentType.unknown:
         return '.txt';
     }

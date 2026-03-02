@@ -40,7 +40,7 @@ class _HomePageState extends State<HomePage> {
     // Create the advanced logger with custom settings
     _logger = AdvancedDioLogger(
       talker: _talker,
-      settings: const AdvancedDioLoggerSettings(
+      settings: AdvancedDioLoggerSettings(
         // Print settings
         printRequestData: true,
         printRequestHeaders: true,
@@ -51,12 +51,6 @@ class _HomePageState extends State<HomePage> {
         // Security settings - hide sensitive headers
         hiddenHeaders: {'authorization', 'x-api-key', 'api-key', 'cookie'},
         hideAuthorizationValue: true,
-
-        // Truncation settings
-        truncateThreshold: 100 * 1024, // 100KB
-        maxDisplaySize: 1024 * 1024, // 1MB
-        imagePreviewThreshold: 500 * 1024, // 500KB
-        maxInlineJsonLines: 20,
 
         // Feature flags
         enableCurlGeneration: true,
