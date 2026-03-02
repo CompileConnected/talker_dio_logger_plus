@@ -52,17 +52,16 @@ class _HomePageState extends State<HomePage> {
         hiddenHeaders: {'authorization', 'x-api-key', 'api-key', 'cookie'},
         hideAuthorizationValue: true,
 
-        displayLimitRegistry: DisplayLimitRegistry(
-          overrides: {HttpContentType.json: DisplayLimit(maxLines: 10)},
+        cardDisplayLimit: DisplayLimitRegistry(
+          overrides: {HttpBodyType.image: DisplayLimit(maxBytes: 10 * 1024)},
         ),
 
         // Feature flags
         enableCurlGeneration: true,
-        enableJsonViewer: true,
-        enableImagePreview: true,
-        enableHtmlPreview: true,
-        enableDownload: true,
         jsonSoftWrapTextValueAtWidth: 150,
+
+        // if you want to disable file saver
+        fileSaver: null,
       ),
     );
 
@@ -112,6 +111,10 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
               _buildRequestButton('POST with Auth', () => _makePostRequest()),
+              _buildRequestButton(
+                'POST FormData (Multipart)',
+                () => _makeFormDataRequest(),
+              ),
               _buildRequestButton('GET Image', () => _makeImageRequest()),
               _buildRequestButton('GET HTML', () => _makeHtmlRequest()),
               _buildRequestButton('GET 404 Error', () => _makeErrorRequest()),
@@ -170,6 +173,104 @@ class _HomePageState extends State<HomePage> {
         ),
       );
       _showSnackBar('Posted: ${response.statusCode}');
+    } catch (e) {
+      _showSnackBar('Error: $e');
+    }
+  }
+
+  Future<void> _makeFormDataRequest() async {
+    try {
+      // Build a multipart/form-data body with text fields and a fake file part
+      final formData = FormData.fromMap({
+        'title': 'Multipart Test',
+        'description': 'Testing FormData logging',
+        'userId': '42',
+        'attachment': MultipartFile.fromBytes(
+          [72, 101, 108, 108, 111], // "Hello" as bytes
+          filename: 'hello.txt',
+          contentType: DioMediaType('text', 'plain'),
+        ),
+        'avatar': MultipartFile.fromBytes(
+          // 1×1 transparent PNG
+          [
+            0x89,
+            0x50,
+            0x4E,
+            0x47,
+            0x0D,
+            0x0A,
+            0x1A,
+            0x0A,
+            0x00,
+            0x00,
+            0x00,
+            0x0D,
+            0x49,
+            0x48,
+            0x44,
+            0x52,
+            0x00,
+            0x00,
+            0x00,
+            0x01,
+            0x00,
+            0x00,
+            0x00,
+            0x01,
+            0x08,
+            0x06,
+            0x00,
+            0x00,
+            0x00,
+            0x1F,
+            0x15,
+            0xC4,
+            0x89,
+            0x00,
+            0x00,
+            0x00,
+            0x0B,
+            0x49,
+            0x44,
+            0x41,
+            0x54,
+            0x78,
+            0x9C,
+            0x62,
+            0x00,
+            0x01,
+            0x00,
+            0x00,
+            0x05,
+            0x00,
+            0x01,
+            0x0D,
+            0x0A,
+            0x2D,
+            0xB4,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x49,
+            0x45,
+            0x4E,
+            0x44,
+            0xAE,
+            0x42,
+            0x60,
+            0x82,
+          ],
+          filename: 'avatar.png',
+          contentType: DioMediaType('image', 'png'),
+        ),
+      });
+
+      final response = await _dio.post(
+        'https://httpbin.org/post',
+        data: formData,
+      );
+      _showSnackBar('FormData posted: ${response.statusCode}');
     } catch (e) {
       _showSnackBar('Error: $e');
     }
