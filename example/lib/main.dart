@@ -52,6 +52,10 @@ class _HomePageState extends State<HomePage> {
         hiddenHeaders: {'authorization', 'x-api-key', 'api-key', 'cookie'},
         hideAuthorizationValue: true,
 
+        displayLimitRegistry: DisplayLimitRegistry(
+          overrides: {HttpContentType.json: DisplayLimit(maxLines: 10)},
+        ),
+
         // Feature flags
         enableCurlGeneration: true,
         enableJsonViewer: true,
@@ -79,44 +83,49 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Test API Requests',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            _buildRequestButton(
-              'GET JSON',
-              () =>
-                  _makeRequest('https://jsonplaceholder.typicode.com/posts/1'),
-            ),
-            _buildRequestButton(
-              'GET JSON List',
-              () => _makeRequest('https://jsonplaceholder.typicode.com/posts'),
-            ),
-            _buildRequestButton(
-              'GET Large JSON',
-              () =>
-                  _makeRequest('https://jsonplaceholder.typicode.com/comments'),
-            ),
-            _buildRequestButton('POST with Auth', () => _makePostRequest()),
-            _buildRequestButton('GET Image', () => _makeImageRequest()),
-            _buildRequestButton('GET HTML', () => _makeHtmlRequest()),
-            _buildRequestButton('GET 404 Error', () => _makeErrorRequest()),
-            const Spacer(),
-            ElevatedButton.icon(
-              onPressed: () => _openTalkerScreen(context),
-              icon: const Icon(Icons.bug_report),
-              label: const Text('Open Talker Logs'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.all(16),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Test API Requests',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              _buildRequestButton(
+                'GET JSON',
+                () => _makeRequest(
+                  'https://jsonplaceholder.typicode.com/posts/1',
+                ),
+              ),
+              _buildRequestButton(
+                'GET JSON List',
+                () =>
+                    _makeRequest('https://jsonplaceholder.typicode.com/posts'),
+              ),
+              _buildRequestButton(
+                'GET Large JSON',
+                () => _makeRequest(
+                  'https://jsonplaceholder.typicode.com/comments',
+                ),
+              ),
+              _buildRequestButton('POST with Auth', () => _makePostRequest()),
+              _buildRequestButton('GET Image', () => _makeImageRequest()),
+              _buildRequestButton('GET HTML', () => _makeHtmlRequest()),
+              _buildRequestButton('GET 404 Error', () => _makeErrorRequest()),
+              const Spacer(),
+              ElevatedButton.icon(
+                onPressed: () => _openTalkerScreen(context),
+                icon: const Icon(Icons.bug_report),
+                label: const Text('Open Talker Logs'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.all(16),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
