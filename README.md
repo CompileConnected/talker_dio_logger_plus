@@ -26,7 +26,7 @@ Cards show method, endpoint, status, response time, and a small response preview
 
 | JSON response | Image response |
 |:---:|:---:|
-| ![Log list](docs/assets/logger_list_1.png) | ![Log list with image](docs/assets/logger_list_2.png) |
+| ![Log list](doc/assets/logger_list_1.png) | ![Log list with image](doc/assets/logger_list_2.png) |
 
 ### Detail View
 
@@ -34,13 +34,13 @@ Tapping a card opens a tabbed detail screen.
 
 | Overview | Request |
 |:---:|:---:|
-| ![Overview tab](docs/assets/detail_page_overview.png) | ![Request tab](docs/assets/detail_page_request.png) |
+| ![Overview tab](doc/assets/detail_page_overview.png) | ![Request tab](doc/assets/detail_page_request.png) |
 
 **Response tab** — rendered differently depending on content type:
 
 | JSON | HTML | Image |
 |:---:|:---:|:---:|
-| ![JSON response](docs/assets/detail_page_response_json.png) | ![HTML response](docs/assets/detail_page_response_html.png) | ![Image response](docs/assets/detail_page_response_image.png) |
+| ![JSON response](doc/assets/detail_page_response_json.png) | ![HTML response](doc/assets/detail_page_response_html.png) | ![Image response](doc/assets/detail_page_response_image.png) |
 
 ## Features
 
