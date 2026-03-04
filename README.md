@@ -1,5 +1,9 @@
 # Talker Dio Logger Plus
 
+[![pub package](https://img.shields.io/pub/v/talker_dio_logger_plus.svg)](https://pub.dev/packages/talker_dio_logger_plus)
+[![pub points](https://img.shields.io/pub/points/talker_dio_logger_plus.svg)](https://pub.dev/packages/talker_dio_logger_plus/score)
+[![license](https://img.shields.io/github/license/Frezy_Mv/talker_dio_logger_plus.svg)](https://github.com/Frezy_Mv/talker_dio_logger_plus/blob/main/LICENSE)
+
 A Dio HTTP logger built on top of [Talker](https://pub.dev/packages/talker) that goes beyond what `talker_dio_logger` offers out of the box.
 
 > This is a personal pet project. It scratches a specific itch and is shared as-is — contributions and feedback are welcome, but support and maintenance are best-effort.
@@ -87,16 +91,16 @@ dependencies:
 
 This package depends on the following packages. They are declared as direct dependencies and will be installed automatically, but your project must meet the minimum version constraints listed below:
 
-| Package | Version           | Purpose |
-|---------|-------------------|---------|
-| [dio](https://pub.dev/packages/dio) | `^5.4.0`          | HTTP client — the interceptor hooks into Dio's request/response pipeline |
-| [talker](https://pub.dev/packages/talker) | `>=4.5.0`         | Core logging sink — all HTTP events are sent to a `Talker` instance |
+| Package | Version           | Purpose                                                                           |
+|---------|-------------------|-----------------------------------------------------------------------------------|
+| [dio](https://pub.dev/packages/dio) | `^5.4.0`          | HTTP client — the interceptor hooks into Dio's request/response pipeline          |
+| [talker](https://pub.dev/packages/talker) | `>=4.5.0`         | Core logging sink — all HTTP events are sent to a `Talker` instance               |
 | [talker_flutter](https://pub.dev/packages/talker_flutter) | `>=4.5.0`         | Flutter UI components (`TalkerScreen`, `TalkerScreenTheme`) used by `HttpLogCard` |
-| [flutter_inappwebview](https://pub.dev/packages/flutter_inappwebview) | `^6.1.5`          | In-app WebView for rendering full-screen HTML responses |
-| [path_provider](https://pub.dev/packages/path_provider) | `^2.1.0`          | Resolves the temporary/documents directory used by `DefaultFileSaver` |
-| [share_plus](https://pub.dev/packages/share_plus) | `>=10.1.4`        | System share sheet used by `DefaultFileSaver.shareFile` |
-| [archive](https://pub.dev/packages/archive) | `^4.0.2`          | ZIP creation used by `DefaultFileSaver.saveHttpLogToZip` |
-| [mime](https://pub.dev/packages/mime) | `>=1.0.4 < 3.0.0` | MIME-type lookup used alongside `http_parser` |
+| [flutter_inappwebview](https://pub.dev/packages/flutter_inappwebview) | `^6.1.5`          | In-app WebView for rendering full-screen HTML responses                           |
+| [path_provider](https://pub.dev/packages/path_provider) | `^2.1.0`          | Resolves the temporary/documents directory used by `DefaultFileSaver`             |
+| [share_plus](https://pub.dev/packages/share_plus) | `>=10.1.4`        | System share sheet used by `DefaultFileSaver.shareFile`                           |
+| [archive](https://pub.dev/packages/archive) | `^4.0.2`          | ZIP creation used by `DefaultFileSaver.saveHttpLogToZip`                          |
+| [mime](https://pub.dev/packages/mime) | `>=1.0.4 < 3.0.0` | MIME-type lookup used alongside `dio`                                             |
 
 > **Note:** `path_provider`, `share_plus`, and `archive` are only exercised by `DefaultFileSaver`. If you supply a custom `FileSaverInterface` implementation or set `fileSaver: null`, those packages are still linked but their code paths are never reached at runtime.
 
