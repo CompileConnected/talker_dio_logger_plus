@@ -2,7 +2,8 @@
 
 [![pub package](https://img.shields.io/pub/v/talker_dio_logger_plus.svg)](https://pub.dev/packages/talker_dio_logger_plus)
 [![pub points](https://img.shields.io/pub/points/talker_dio_logger_plus.svg)](https://pub.dev/packages/talker_dio_logger_plus/score)
-[![license](https://img.shields.io/github/license/Frezy_Mv/talker_dio_logger_plus.svg)](https://github.com/Frezy_Mv/talker_dio_logger_plus/blob/main/LICENSE)
+[![downloads](https://img.shields.io/pub/dm/talker_dio_logger_plus.svg)](https://pub.dev/packages/talker_dio_logger_plus)
+[![license](https://img.shields.io/github/license/CompileConnected/talker_dio_logger_plus.svg)](https://github.com/CompileConnected/talker_dio_logger_plus/blob/main/LICENSE)
 
 A Dio HTTP logger built on top of [Talker](https://pub.dev/packages/talker) that goes beyond what `talker_dio_logger` offers out of the box.
 
